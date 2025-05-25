@@ -1,0 +1,38 @@
+name: flutter_temp
+description: A new Flutter project.
+
+publish_to: 'none' # Remove this line if you wish to publish to pub.dev
+
+version: 0.0.1+1
+
+environment:
+  sdk: '>=3.4.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # 既存の依存関係 …
+  english_words: ^4.0.0
+  provider: ^6.1.2
+  google_generative_ai: ^0.2.2
+  speech_to_text: ^7.0.0
+  flutter_tts: ^4.2.2
+  flutter_dotenv: ^5.1.0      # ← 追加
+  
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+  flutter_launcher_icons: ^0.14.3   # ← 追加（最新版を推奨）
+
+flutter:
+  uses-material-design: true
+  assets:
+    - .env
+
+flutter_icons:
+  android: true
+  ios: true
+  image_path: assets/icon/app_icon.png   # さっき置いた画像
+  min_sdk_android: 24                   # 21 以上なら OK
