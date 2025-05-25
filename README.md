@@ -7,10 +7,9 @@
 
 <p align="center">
   <!-- License badge -->
-  <a href="LICENSE">
+  <a href="LICENSE/mit.md">
     <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"/>
   </a>
----
 
 ## 📚 Table of Contents
 
