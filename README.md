@@ -7,7 +7,7 @@
 
 <p align="center">
   <!-- License badge -->
-  <a href="license/mit.md">
+  <a href="mit.md">
     <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"/>
   </a>
 
@@ -16,15 +16,16 @@
 - [Overview](#overview)
 - [Features](#features)
 - [Getting Started](#getting-started)
-- [License](#license)
 
 ---
 
 ## 📝 Overview
 
-TalkOne is a **1‑on‑1 video chat platform** that pairs strangers in real‑time while keeping their identity private.  
-It overlays an *Animoji‑style* 3‑D face on top of the camera feed and mutes the microphone by default, letting users speak only while holding the push‑to‑talk button.  
-After each call both parties rate the experience, and accounts with chronically low ratings are automatically matched with an AI agent powered by Gemini.
+
+TalkOne は <ruby>1対1<rt>いち たい いち</rt></ruby> の <ruby>ビデオチャット<rt>びでお ちゃっと</rt></ruby> アプリです。  
+<ruby>見た目<rt>みため</rt></ruby> と <ruby>名前<rt>なまえ</rt></ruby> を <ruby>隠<rt>かく</rt></ruby>して、 <ruby>知らない<rt>しらない</rt></ruby> 人と すぐに 話す ことができます。  
+カメラの 上に アニメの 顔を つけて、 <ruby>普段<rt>ふだん</rt></ruby> は マイクを オフにします。 話したい とき だけ ボタンを 押しながら 声を 出します。  
+<ruby>会話<rt>かいわ</rt></ruby> が 終わったら、 二人とも その 会話を 3 段階で <ruby>評価<rt>ひょうか</rt></ruby> します。 <ruby>評価<rt>ひょうか</rt></ruby> が 低い 人は 次から AI（Gemini）と マッチング されます。  
 
 ---
 
@@ -76,19 +77,3 @@ cd functions && npm ci        # Cloud Functions deps
 firebase emulators:start &    # Firestore/Auth emu
 flutter run -d chrome         # or -d ios / -d android
 ```
-
----
-
-## 🤝 Contributing
-
-1. Issue を立ててバグ報告 / 機能提案  
-2. `git checkout -b feat/my-awesome-feature` でブランチを切る  
-3. `flutter analyze` と `flutter test` が green になることを確認  
-4. Pull Request を送る → GitHub Actions が通ればマージ 🎉
-
----
-
-## 🪪 License
-
-Distributed under the **MIT License**.  
-See [`LICENSE`](LICENSE) for more information.
