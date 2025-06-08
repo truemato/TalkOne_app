@@ -40,6 +40,7 @@ class AgoraCallService {
       await _engine!.initialize(RtcEngineContext(
         appId: AgoraConfig.appId,
         channelProfile: ChannelProfileType.channelProfileCommunication,
+        audioScenario: AudioScenarioType.audioScenarioChatroom,
       ));
       
       // イベントハンドラーを設定
@@ -53,7 +54,7 @@ class AgoraCallService {
           onUserJoined?.call(uid.toString());
         },
         onUserOffline: (RtcConnection connection, int uid, UserOfflineReasonType reason) {
-          print('Agora: ユーザー離脱 - $uid');
+          print('Agora: ユーザー離脱 - $uid (理由: $reason)');
           onUserLeft?.call(uid.toString());
         },
         onConnectionStateChanged: (RtcConnection connection, ConnectionStateType state, ConnectionChangedReasonType reason) {
@@ -127,7 +128,7 @@ class AgoraCallService {
       final uid = DateTime.now().millisecondsSinceEpoch % 1000000; // 簡単なUID生成
       
       await _engine!.joinChannel(
-        token: "",  // テスト用：空文字列
+        token: "",  // テスト用：空文字列（テストモード）
         channelId: channelName,
         uid: uid,
         options: const ChannelMediaOptions(

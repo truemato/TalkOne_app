@@ -3,6 +3,7 @@ import 'dart:async';
 import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'evaluation_service.dart';
 
 enum CallStatus {
   waiting,      // 待機中
@@ -15,16 +16,20 @@ enum CallStatus {
 class CallMatchingService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final String _userId = FirebaseAuth.instance.currentUser!.uid;
+  final EvaluationService _evaluationService = EvaluationService();
   
   StreamSubscription? _matchingSubscription;
   String? _currentCallId;
   
   // 通話リクエストを作成（通話ボタンを押したとき）
-  Future<String> createCallRequest() async {
+  Future<String> createCallRequest({bool forceAIMatch = false}) async {
     // まず古い自分のリクエストをクリーンアップ
     await _cleanupOldRequests();
     
     final callRequestRef = _db.collection('callRequests').doc();
+    
+    // ユーザーの現在のレーティングを取得
+    final userRating = await _evaluationService.getUserRating();
     
     await callRequestRef.set({
       'userId': _userId,
@@ -32,6 +37,8 @@ class CallMatchingService {
       'createdAt': FieldValue.serverTimestamp(),
       'matchedWith': null,
       'channelName': null,
+      'userRating': userRating,
+      'forceAIMatch': forceAIMatch,
     });
     
     _currentCallId = callRequestRef.id;
@@ -99,19 +106,23 @@ class CallMatchingService {
       print('通話マッチング: 他のユーザーを検索中... (自分: $_userId)');
       
       await _db.runTransaction((transaction) async {
-        // 待機中の他のリクエストを検索（自分以外）- インデックス不要の単純なクエリに変更
-        final waitingRequests = await _db
-            .collection('callRequests')
-            .where('status', isEqualTo: CallStatus.waiting.name)
-            .limit(10)  // 複数取得して自分を除外
-            .get();
+        // 自分のリクエスト情報を取得
+        final myRequestDoc = await transaction.get(_db.collection('callRequests').doc(callRequestId));
+        if (!myRequestDoc.exists) return;
         
-        print('通話マッチング: 待機中のリクエスト数: ${waitingRequests.docs.length}');
+        final myData = myRequestDoc.data()!;
+        final myRating = (myData['userRating'] ?? 1000.0).toDouble();
+        final forceAIMatch = myData['forceAIMatch'] ?? false;
         
-        // 自分以外の待機中ユーザーを検索
-        final availablePartners = waitingRequests.docs
-            .where((doc) => doc['userId'] != _userId)
-            .toList();
+        // AI強制マッチングまたはAI推奨条件の場合
+        if (forceAIMatch || await _evaluationService.shouldMatchWithAI(myRating)) {
+          print('通話マッチング: AI練習モードを開始');
+          await _createAIPartner(callRequestId, transaction);
+          return;
+        }
+        
+        // レーティングベースマッチング
+        final availablePartners = await _findRatingBasedPartners(myRating);
         
         print('通話マッチング: 利用可能なパートナー数: ${availablePartners.length}');
         
@@ -142,41 +153,155 @@ class CallMatchingService {
           
           print('マッチング成功: $_userId <-> $partnerId (チャンネル: $channelName)');
         } else {
-          print('通話マッチング: 他に待機中のユーザーが見つかりませんでした');
+          print('通話マッチング: 適切なパートナーが見つかりませんでした');
           
-          // テスト用：10秒後にダミーパートナーを作成
-          Future.delayed(const Duration(seconds: 10), () async {
-            try {
-              final stillWaiting = await _db.collection('callRequests').doc(callRequestId).get();
-              if (stillWaiting.exists && stillWaiting.data()?['status'] == CallStatus.waiting.name) {
-                print('通話マッチング: テスト用ダミーパートナーを作成');
-                await _createDummyPartner(callRequestId);
-              }
-            } catch (e) {
-              print('ダミーパートナー作成エラー: $e');
-            }
-          });
+          // 段階的マッチング範囲拡大
+          _scheduleExpandedMatching(callRequestId, myRating);
         }
       });
     } catch (e) {
       print('マッチングエラー: $e');
     }
   }
-  
-  // テスト用ダミーパートナーを作成
-  Future<void> _createDummyPartner(String callRequestId) async {
-    final channelName = _generateChannelName();
-    final dummyPartnerId = 'dummy_${DateTime.now().millisecondsSinceEpoch}';
+
+  // レーティングベースのパートナー検索
+  Future<List<QueryDocumentSnapshot>> _findRatingBasedPartners(double myRating) async {
+    try {
+      // インデックスが不要なシンプルなクエリに変更
+      final waitingRequests = await _db
+          .collection('callRequests')
+          .where('status', isEqualTo: CallStatus.waiting.name)
+          .limit(50)  // 多めに取得してクライアント側でフィルタリング
+          .get();
+      
+      // クライアント側でレーティング範囲フィルタリング（999基準に調整）
+      var ratingRange = 50.0;  // ±50ポイント
+      final maxRange = 150.0;  // 最大±150ポイント
+      
+      while (ratingRange <= maxRange) {
+        final minRating = myRating - ratingRange;
+        final maxRating = myRating + ratingRange;
+        
+        // 自分以外で、レーティング範囲内、AI強制マッチング以外のユーザーを検索
+        final availablePartners = waitingRequests.docs
+            .where((doc) {
+              final data = doc.data() as Map<String, dynamic>;
+              final userRating = (data['userRating'] ?? 1000.0).toDouble();
+              return doc['userId'] != _userId && 
+                     userRating >= minRating &&
+                     userRating <= maxRating &&
+                     !(data['forceAIMatch'] ?? false);
+            })
+            .toList();
+        
+        if (availablePartners.isNotEmpty) {
+          // レーティング差で並び替え
+          availablePartners.sort((a, b) {
+            final aRating = (a['userRating'] ?? 1000.0).toDouble();
+            final bRating = (b['userRating'] ?? 1000.0).toDouble();
+            final aDiff = (aRating - myRating).abs();
+            final bDiff = (bRating - myRating).abs();
+            return aDiff.compareTo(bDiff);
+          });
+          
+          return availablePartners;
+        }
+        
+        // 範囲を拡大して再検索
+        ratingRange += 10.0;
+      }
+    } catch (e) {
+      print('レーティングベースパートナー検索エラー: $e');
+    }
     
-    await _db.collection('callRequests').doc(callRequestId).update({
+    return [];
+  }
+
+  // 段階的マッチング範囲拡大
+  void _scheduleExpandedMatching(String callRequestId, double myRating) {
+    // 10秒後：範囲を大幅拡大して再検索
+    Future.delayed(const Duration(seconds: 10), () async {
+      try {
+        final stillWaiting = await _db.collection('callRequests').doc(callRequestId).get();
+        if (stillWaiting.exists && stillWaiting.data()?['status'] == CallStatus.waiting.name) {
+          print('通話マッチング: 拡大範囲で再検索');
+          
+          // 全レーティング範囲で検索
+          final waitingRequests = await _db
+              .collection('callRequests')
+              .where('status', isEqualTo: CallStatus.waiting.name)
+              .limit(20)
+              .get();
+          
+          final availablePartners = waitingRequests.docs
+              .where((doc) => doc['userId'] != _userId)
+              .toList();
+          
+          if (availablePartners.isNotEmpty) {
+            final partnerDoc = availablePartners.first;
+            final partnerId = partnerDoc['userId'];
+            final channelName = _generateChannelName();
+            
+            await _db.runTransaction((transaction) async {
+              transaction.update(_db.collection('callRequests').doc(callRequestId), {
+                'status': CallStatus.matched.name,
+                'matchedWith': partnerId,
+                'channelName': channelName,
+                'matchedAt': FieldValue.serverTimestamp(),
+              });
+              
+              transaction.update(_db.collection('callRequests').doc(partnerDoc.id), {
+                'status': CallStatus.matched.name,
+                'matchedWith': _userId,
+                'channelName': channelName,
+                'matchedAt': FieldValue.serverTimestamp(),
+              });
+            });
+            
+            print('拡大範囲マッチング成功: $_userId <-> $partnerId');
+          } else {
+            // 20秒後：AI練習パートナーを提案
+            Future.delayed(const Duration(seconds: 10), () async {
+              final stillWaiting2 = await _db.collection('callRequests').doc(callRequestId).get();
+              if (stillWaiting2.exists && stillWaiting2.data()?['status'] == CallStatus.waiting.name) {
+                print('通話マッチング: AI練習パートナーを作成');
+                await _createAIPartner(callRequestId, null);
+              }
+            });
+          }
+        }
+      } catch (e) {
+        print('拡大マッチングエラー: $e');
+      }
+    });
+  }
+  
+  // AI練習パートナーを作成
+  Future<void> _createAIPartner(String callRequestId, Transaction? transaction) async {
+    final channelName = _generateChannelName();
+    final aiPartnerId = 'ai_practice_${DateTime.now().millisecondsSinceEpoch}';
+    
+    final updateData = {
       'status': CallStatus.matched.name,
-      'matchedWith': dummyPartnerId,
+      'matchedWith': aiPartnerId,
       'channelName': channelName,
       'matchedAt': FieldValue.serverTimestamp(),
-      'isDummyMatch': true,  // ダミーマッチのフラグ
-    });
+      'isDummyMatch': true,  // AI練習のフラグ
+      'isAIMatch': true,     // AI練習専用フラグ
+    };
+
+    if (transaction != null) {
+      transaction.update(_db.collection('callRequests').doc(callRequestId), updateData);
+    } else {
+      await _db.collection('callRequests').doc(callRequestId).update(updateData);
+    }
     
-    print('ダミーパートナー作成完了: $dummyPartnerId (チャンネル: $channelName)');
+    print('AI練習パートナー作成完了: $aiPartnerId (チャンネル: $channelName)');
+  }
+
+  // テスト用ダミーパートナーを作成（後方互換性のため残す）
+  Future<void> _createDummyPartner(String callRequestId) async {
+    await _createAIPartner(callRequestId, null);
   }
   
   // チャンネル名を生成

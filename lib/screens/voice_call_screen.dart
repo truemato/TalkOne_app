@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../services/agora_call_service.dart';
 import '../services/call_matching_service.dart';
 import '../config/agora_config.dart';
+import 'evaluation_screen.dart';
 
 class VoiceCallScreen extends StatefulWidget {
   final String channelName;
@@ -37,6 +38,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
   Timer? _timer;
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
+  bool _callEnded = false; // 通話終了済みフラグ
   
   @override
   void initState() {
@@ -65,6 +67,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
   Future<void> _initializeCall() async {
     // Agoraコールバック設定
     _agoraService.onUserJoined = (uid) {
+      if (!mounted) return;
       setState(() {
         _partnerJoined = true;
         _connectionStatus = '通話中';
@@ -74,15 +77,22 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
     };
     
     _agoraService.onUserLeft = (uid) {
+      if (!mounted) return;
+      print('相手が退出しました: $uid');
       setState(() {
         _partnerJoined = false;
         _connectionStatus = '相手が退出しました';
       });
-      _endCall(reason: '相手が通話を終了しました');
-      print('相手が退出しました: $uid');
+      // 少し遅延させてから通話終了処理を実行
+      Future.delayed(const Duration(milliseconds: 500), () {
+        if (mounted) {
+          _endCall(reason: '相手が通話を終了しました');
+        }
+      });
     };
     
     _agoraService.onConnectionStateChanged = (state) {
+      if (!mounted) return;
       setState(() {
         _isConnected = state == AgoraConnectionState.connected;
         switch (state) {
@@ -94,6 +104,14 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
             break;
           case AgoraConnectionState.disconnected:
             _connectionStatus = '接続切断';
+            // 通話中に接続が切断された場合、通話終了処理を実行
+            if (_partnerJoined) {
+              Future.delayed(const Duration(milliseconds: 1000), () {
+                if (mounted) {
+                  _endCall(reason: '接続が切断されました');
+                }
+              });
+            }
             break;
           case AgoraConnectionState.failed:
             _connectionStatus = '接続失敗';
@@ -110,6 +128,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
     };
     
     _agoraService.onAudioVolumeIndication = (volume) {
+      if (!mounted) return;
       setState(() {
         _myVolume = volume;
       });
@@ -139,13 +158,31 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
       return;
     }
     
-    setState(() {
-      _connectionStatus = '相手の参加を待っています...';
-    });
+    if (mounted) {
+      setState(() {
+        _connectionStatus = '相手の参加を待っています...';
+      });
+    }
+    
+    // AI通話の場合は即座にタイマー開始
+    if (widget.partnerId.startsWith('ai_practice_') || widget.partnerId.startsWith('dummy_')) {
+      setState(() {
+        _partnerJoined = true;
+        _connectionStatus = 'AI通話中';
+      });
+      _startCallTimer();
+      print('AI通話を開始しました');
+    }
   }
   
   void _startCallTimer() {
+    if (_timer != null) return; // 既にタイマーが動いている場合は何もしない
+    
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
       setState(() {
         _remainingSeconds--;
       });
@@ -159,56 +196,59 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
   Future<void> _toggleMute() async {
     await _agoraService.toggleMute();
     final muted = await _agoraService.isMuted();
-    setState(() {
-      _isMuted = muted;
-    });
+    if (mounted) {
+      setState(() {
+        _isMuted = muted;
+      });
+    }
   }
   
   void _endCall({String reason = '通話を終了しました'}) {
+    if (_callEnded) return; // 既に終了処理中の場合は何もしない
+    _callEnded = true;
+    
+    print('通話終了処理開始: $reason');
     _timer?.cancel();
     
     // 通話終了を記録
     _matchingService.finishCall(widget.callId);
     
-    _showCallEndDialog(reason);
+    // Agoraから離脱
+    _agoraService.leaveChannel();
+    
+    // 評価画面に直接遷移
+    _navigateToEvaluation();
   }
   
-  void _showCallEndDialog(String reason) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('通話終了'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(
-                Icons.call_end,
-                size: 64,
-                color: Colors.red,
-              ),
-              const SizedBox(height: 16),
-              Text(reason),
-              const SizedBox(height: 16),
-              Text(
-                '通話時間: ${_formatTime(AgoraConfig.callDurationSeconds - _remainingSeconds)}',
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-            ],
-          ),
-          actions: [
-            ElevatedButton(
-              onPressed: () {
-                Navigator.of(context).pop(); // ダイアログを閉じる
-                Navigator.of(context).pop(); // 通話画面を閉じる
-                Navigator.of(context).pop(); // マッチング画面を閉じる
-              },
-              child: const Text('ホームに戻る'),
-            ),
-          ],
-        );
-      },
+  void _cancelCall() {
+    if (_callEnded) return;
+    _callEnded = true;
+    
+    print('通話キャンセル処理開始');
+    _timer?.cancel();
+    
+    // 通話キャンセルを記録
+    _matchingService.cancelCallRequest(widget.callId);
+    
+    // Agoraから離脱
+    _agoraService.leaveChannel();
+    
+    // ホーム画面に戻る
+    Navigator.of(context).popUntil((route) => route.isFirst);
+  }
+
+  void _navigateToEvaluation() {
+    // 全ての既存画面をクリアして評価画面に遷移
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(
+        builder: (context) => EvaluationScreen(
+          callId: widget.callId,
+          partnerId: widget.partnerId,
+          isDummyMatch: widget.partnerId.startsWith('dummy_') || 
+                       widget.partnerId.startsWith('ai_practice_'),
+        ),
+      ),
+      (route) => false, // 全ての前の画面を削除
     );
   }
   
@@ -249,7 +289,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
         title: Text(_connectionStatus),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => _endCall(reason: '通話をキャンセルしました'),
+          onPressed: () => _cancelCall(),
         ),
       ),
       body: SafeArea(

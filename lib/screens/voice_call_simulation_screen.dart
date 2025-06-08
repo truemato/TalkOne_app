@@ -65,7 +65,13 @@ class _VoiceCallSimulationScreenState extends State<VoiceCallSimulationScreen>
   }
   
   void _startCallTimer() {
+    if (_timer != null) return; // 既にタイマーが動いている場合は何もしない
+    
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
       setState(() {
         _remainingSeconds--;
       });

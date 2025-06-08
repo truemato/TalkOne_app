@@ -1,7 +1,7 @@
 // lib/config/agora_config.dart
 class AgoraConfig {
   // Agora App ID (開発用の一時的なもの、本番では環境変数から取得)
-  static const String appId = "5633ebf2d65c415581178e25fb64d859";
+  static const String appId = "4067eac9200f4aebb0fcf1b190eabd7d";
   
   // テスト用のチャンネル設定
   static const String channelPrefix = "talkone_";

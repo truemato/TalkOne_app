@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../services/call_matching_service.dart';
 import 'voice_call_screen.dart';
 import 'voice_call_simulation_screen.dart';
+import '../config/app_config.dart';
 
 enum MatchingState {
   initial,    // 初期状態
@@ -14,7 +15,9 @@ enum MatchingState {
 }
 
 class CallMatchingScreen extends StatefulWidget {
-  const CallMatchingScreen({super.key});
+  final bool forceAIMatch;
+  
+  const CallMatchingScreen({super.key, this.forceAIMatch = false});
 
   @override
   State<CallMatchingScreen> createState() => _CallMatchingScreenState();
@@ -73,8 +76,10 @@ class _CallMatchingScreenState extends State<CallMatchingScreen>
     });
     
     try {
-      // 通話リクエストを作成
-      _callRequestId = await _matchingService.createCallRequest();
+      // 通話リクエストを作成（AI強制マッチングフラグを渡す）
+      _callRequestId = await _matchingService.createCallRequest(
+        forceAIMatch: widget.forceAIMatch,
+      );
       
       // マッチング監視開始
       _matchingSubscription = _matchingService
@@ -106,17 +111,23 @@ class _CallMatchingScreenState extends State<CallMatchingScreen>
     _waitingTimer?.cancel();
     _matchingSubscription?.cancel();
     
-    // 少し待ってから通話画面に遷移（シミュレーション版を使用）
+    // 少し待ってから通話画面に遷移
     Future.delayed(const Duration(seconds: 2), () {
-      if (mounted && Navigator.canPop(context)) {
+      if (mounted) {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (_) => VoiceCallSimulationScreen(
-              channelName: match.channelName,
-              callId: match.callId,
-              partnerId: match.partnerId,
-            ),
+            builder: (_) => AppConfig.useAgoraSimulation
+                ? VoiceCallSimulationScreen(
+                    channelName: match.channelName,
+                    callId: match.callId,
+                    partnerId: match.partnerId,
+                  )
+                : VoiceCallScreen(
+                    channelName: match.channelName,
+                    callId: match.callId,
+                    partnerId: match.partnerId,
+                  ),
           ),
         );
       }
@@ -156,7 +167,7 @@ class _CallMatchingScreenState extends State<CallMatchingScreen>
     _waitingTimer?.cancel();
     _matchingSubscription?.cancel();
     
-    if (mounted && Navigator.canPop(context)) {
+    if (mounted) {
       Navigator.pop(context);
     }
   }
