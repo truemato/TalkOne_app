@@ -72,10 +72,16 @@ class _EvaluationContentState extends State<EvaluationContent> {
 
       // 自動でrematch画面に移動
       if (mounted) {
+        // 現在のユーザーレーティングを取得
+        final userRating = await _evaluationService.getUserRating();
+        
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (context) => const RematchOrHomeScreen(),
+            builder: (context) => RematchOrHomeScreen(
+              userRating: userRating,
+              isDummyMatch: true,
+            ),
           ),
         );
       }

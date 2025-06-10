@@ -5,6 +5,9 @@ import '../services/agora_call_service.dart';
 import '../services/call_matching_service.dart';
 import '../config/agora_config.dart';
 import 'evaluation_screen.dart';
+import '../services/ai_voice_chat_service.dart';
+import 'package:speech_to_text/speech_to_text.dart';
+import 'package:flutter_tts/flutter_tts.dart';
 
 class VoiceCallScreen extends StatefulWidget {
   final String channelName;
@@ -26,6 +29,14 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
     with TickerProviderStateMixin {
   final AgoraCallService _agoraService = AgoraCallService();
   final CallMatchingService _matchingService = CallMatchingService();
+  
+  // AI音声会話用
+  AIVoiceChatService? _aiVoiceChatService;
+  final SpeechToText _speech = SpeechToText();
+  final FlutterTts _tts = FlutterTts();
+  bool _isAICall = false;
+  String _currentTranscript = '';
+  String _aiResponse = '';
   
   bool _isConnected = false;
   bool _isMuted = false;
@@ -61,6 +72,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
     _timer?.cancel();
     _pulseController.dispose();
     _agoraService.dispose();
+    _aiVoiceChatService?.dispose();
     super.dispose();
   }
   
@@ -164,17 +176,97 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
       });
     }
     
-    // AI通話の場合は即座にタイマー開始
+    // AI通話の場合は即座にタイマー開始とAI音声会話初期化
     if (widget.partnerId.startsWith('ai_practice_') || widget.partnerId.startsWith('dummy_')) {
       setState(() {
+        _isAICall = true;
         _partnerJoined = true;
-        _connectionStatus = 'AI通話中';
+        _connectionStatus = 'AI音声会話を準備中...';
       });
       _startCallTimer();
+      await _initializeAIVoiceChat();
       print('AI通話を開始しました');
     }
   }
   
+  // AI音声会話の初期化
+  Future<void> _initializeAIVoiceChat() async {
+    _aiVoiceChatService = AIVoiceChatService(
+      speech: _speech,
+      tts: _tts,
+    );
+
+    // コールバック設定
+    _aiVoiceChatService!.onStateChanged = (state) {
+      if (!mounted) return;
+      setState(() {
+        switch (state) {
+          case VoiceChatState.idle:
+            _connectionStatus = 'AI待機中（話しかけてください）';
+            _partnerVolume = 0;
+            _pulseController.stop();
+            _pulseController.reset();
+            break;
+          case VoiceChatState.listening:
+            _connectionStatus = 'あなたの声を聞いています...';
+            break;
+          case VoiceChatState.processing:
+            _connectionStatus = 'AI考え中...';
+            break;
+          case VoiceChatState.speaking:
+            _connectionStatus = 'AI話し中...';
+            _partnerVolume = 30; // AI話し中は音量表示
+            break;
+          case VoiceChatState.error:
+            _connectionStatus = 'エラーが発生しました';
+            break;
+        }
+      });
+    };
+
+    _aiVoiceChatService!.onUserSpeech = (text) {
+      if (!mounted) return;
+      setState(() {
+        _currentTranscript = text;
+        _myVolume = text.isNotEmpty ? 20 : 0;
+      });
+    };
+
+    _aiVoiceChatService!.onAIResponse = (text) {
+      if (!mounted) return;
+      setState(() {
+        _aiResponse = text;
+        _partnerVolume = 30;
+      });
+      // AIが話し始めたらパルスアニメーション開始
+      if (!_pulseController.isAnimating) {
+        _pulseController.repeat(reverse: true);
+      }
+    };
+
+    _aiVoiceChatService!.onError = (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error), backgroundColor: Colors.red),
+      );
+    };
+
+    _aiVoiceChatService!.onSoundLevel = (level) {
+      if (!mounted) return;
+      setState(() {
+        _myVolume = level.toInt();
+      });
+    };
+
+    // AI音声会話を初期化
+    final initialized = await _aiVoiceChatService!.initialize();
+    if (initialized && mounted) {
+      setState(() {
+        _connectionStatus = 'AI音声会話準備完了';
+      });
+    }
+  }
+
   void _startCallTimer() {
     if (_timer != null) return; // 既にタイマーが動いている場合は何もしない
     
@@ -194,12 +286,27 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
   }
   
   Future<void> _toggleMute() async {
-    await _agoraService.toggleMute();
-    final muted = await _agoraService.isMuted();
-    if (mounted) {
+    if (_isAICall) {
+      // AI通話の場合は音声認識のトグル
+      if (_aiVoiceChatService != null) {
+        if (_aiVoiceChatService!.currentState == VoiceChatState.listening) {
+          await _aiVoiceChatService!.stopListening();
+        } else if (_aiVoiceChatService!.currentState == VoiceChatState.idle) {
+          await _aiVoiceChatService!.startListening();
+        }
+      }
       setState(() {
-        _isMuted = muted;
+        _isMuted = _aiVoiceChatService?.currentState != VoiceChatState.listening;
       });
+    } else {
+      // 通常の通話
+      await _agoraService.toggleMute();
+      final muted = await _agoraService.isMuted();
+      if (mounted) {
+        setState(() {
+          _isMuted = muted;
+        });
+      }
     }
   }
   
@@ -209,6 +316,12 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
     
     print('通話終了処理開始: $reason');
     _timer?.cancel();
+    
+    // AI音声会話を停止
+    if (_isAICall && _aiVoiceChatService != null) {
+      _aiVoiceChatService!.stopSpeaking();
+      _aiVoiceChatService!.stopListening();
+    }
     
     // 通話終了を記録
     _matchingService.finishCall(widget.callId);
@@ -226,6 +339,12 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
     
     print('通話キャンセル処理開始');
     _timer?.cancel();
+    
+    // AI音声会話を停止
+    if (_isAICall && _aiVoiceChatService != null) {
+      _aiVoiceChatService!.stopSpeaking();
+      _aiVoiceChatService!.stopListening();
+    }
     
     // 通話キャンセルを記録
     _matchingService.cancelCallRequest(widget.callId);
@@ -349,12 +468,33 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    _partnerJoined ? '相手' : '相手を待っています...',
+                    _isAICall ? 'AI' : (_partnerJoined ? '相手' : '相手を待っています...'),
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 18,
                     ),
                   ),
+                  if (_isAICall && _aiResponse.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      margin: const EdgeInsets.symmetric(horizontal: 24),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        _aiResponse,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                        ),
+                        textAlign: TextAlign.center,
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
                 ],
               ),
               
@@ -390,12 +530,37 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    _isMuted ? 'ミュート中' : 'あなた',
+                    _isAICall 
+                        ? (_aiVoiceChatService?.currentState == VoiceChatState.listening 
+                            ? '聞いています...' 
+                            : 'マイクをタップして話す')
+                        : (_isMuted ? 'ミュート中' : 'あなた'),
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 16,
                     ),
                   ),
+                  if (_isAICall && _currentTranscript.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      margin: const EdgeInsets.symmetric(horizontal: 24),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        _currentTranscript,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                        ),
+                        textAlign: TextAlign.center,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
                 ],
               ),
               

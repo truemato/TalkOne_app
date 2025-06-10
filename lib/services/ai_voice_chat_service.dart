@@ -1,6 +1,7 @@
 // lib/services/ai_voice_chat_service.dart
 import 'dart:async';
-import 'package:speech_to_text/speech_to_text.dart' as stt;
+import 'package:speech_to_text/speech_to_text.dart';
+import 'package:speech_to_text/speech_recognition_result.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:firebase_ai/firebase_ai.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -15,7 +16,7 @@ enum VoiceChatState {
 }
 
 class AIVoiceChatService {
-  final stt.SpeechToText _speech;
+  final SpeechToText _speech;
   final FlutterTts _tts;
   late final GenerativeModel _aiModel;
   late final ChatSession _session;
@@ -36,7 +37,7 @@ class AIVoiceChatService {
   Timer? _speechTimer;
   
   AIVoiceChatService({
-    required stt.SpeechToText speech,
+    required SpeechToText speech,
     required FlutterTts tts,
   }) : _speech = speech, _tts = tts;
   
@@ -62,7 +63,7 @@ class AIVoiceChatService {
       );
       
       _aiModel = FirebaseAI.googleAI().generativeModel(
-        model: 'gemini-1.5-pro',
+        model: 'gemini-2.5-flash-preview-05-20',
         systemInstruction: Content.text(systemPrompt),
       );
       _session = _aiModel.startChat();
@@ -133,7 +134,7 @@ class AIVoiceChatService {
   }
   
   // 音声認識結果の処理
-  void _onSpeechResult(stt.SpeechRecognitionResult result) {
+  void _onSpeechResult(SpeechRecognitionResult result) {
     _accumulatedSpeech = result.recognizedWords;
     onUserSpeech?.call(_accumulatedSpeech);
     

@@ -93,7 +93,7 @@ class _ChatScreenState extends State<ChatScreen> {
     print('選択された人格: ${PersonalitySystem.getPersonalityName(_currentPersonalityId!)}');
     
     _aiModel = FirebaseAI.googleAI().generativeModel(
-      model: 'gemini-1.5-pro',
+      model: 'gemini-2.5-flash-preview-05-20',
       systemInstruction: Content.text(systemPrompt),
     );
     _session = _aiModel.startChat();
