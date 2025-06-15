@@ -22,7 +22,11 @@ class CallMatchingService {
   String? _currentCallId;
   
   // 通話リクエストを作成（通話ボタンを押したとき）
-  Future<String> createCallRequest({bool forceAIMatch = false}) async {
+  Future<String> createCallRequest({
+    bool forceAIMatch = false,
+    bool enableAIFilter = false,
+    bool privacyMode = false,
+  }) async {
     // まず古い自分のリクエストをクリーンアップ
     await _cleanupOldRequests();
     
@@ -39,6 +43,8 @@ class CallMatchingService {
       'channelName': null,
       'userRating': userRating,
       'forceAIMatch': forceAIMatch,
+      'enableAIFilter': enableAIFilter,
+      'privacyMode': privacyMode,
     });
     
     _currentCallId = callRequestRef.id;
@@ -89,6 +95,8 @@ class CallMatchingService {
           partnerId: data['matchedWith'],
           channelName: data['channelName'],
           status: status,
+          enableAIFilter: data['enableAIFilter'] ?? false,
+          privacyMode: data['privacyMode'] ?? false,
         );
         controller.add(match);
       } else if (status == CallStatus.cancelled || status == CallStatus.finished) {
@@ -346,11 +354,15 @@ class CallMatch {
   final String partnerId;
   final String channelName;
   final CallStatus status;
+  final bool enableAIFilter;
+  final bool privacyMode;
   
   CallMatch({
     required this.callId,
     required this.partnerId,
     required this.channelName,
     required this.status,
+    this.enableAIFilter = false,
+    this.privacyMode = false,
   });
 }

@@ -21,10 +21,24 @@ dependencies:
   # 音声機能
   speech_to_text: ^7.0.0
   flutter_tts: ^4.2.2
+  audioplayers: ^6.4.0  # VOICEVOX音声再生用
+  
+  # リアルタイム通信
+  web_socket_channel: ^3.0.1
+  
+  # 音声処理
+  flutter_sound: ^9.2.13
+  record: ^5.0.5
   
   # P2P通話機能
-  agora_rtc_engine: ^6.2.6
+  agora_rtc_engine: ^6.3.2
   permission_handler: ^11.3.1
+  
+  # HTTP通信
+  http: ^1.1.0
+  
+  # ネットワーク接続確認
+  connectivity_plus: ^6.0.2
   
 dev_dependencies:
   flutter_test:

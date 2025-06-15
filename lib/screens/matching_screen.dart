@@ -4,12 +4,24 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../services/call_matching_service.dart';
 import '../services/evaluation_service.dart';
+import '../services/ai_filter_service.dart';
 import 'pre_call_screen.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class MatchingScreen extends StatefulWidget {
   final bool forceAIMatch;
+  final bool isVideoCall;
+  final bool enableAIFilter;
+  final bool privacyMode;
   
-  const MatchingScreen({super.key, this.forceAIMatch = false});
+  const MatchingScreen({
+    super.key, 
+    this.forceAIMatch = false, 
+    this.isVideoCall = false,
+    this.enableAIFilter = false,
+    this.privacyMode = false,
+  });
 
   @override
   State<MatchingScreen> createState() => _MatchingScreenState();
@@ -18,6 +30,7 @@ class MatchingScreen extends StatefulWidget {
 class _MatchingScreenState extends State<MatchingScreen> {
   final CallMatchingService _matchingService = CallMatchingService();
   final EvaluationService _evaluationService = EvaluationService();
+  final AIFilterService _aiFilterService = AIFilterService();
   
   late Timer _dotTimer;
   int _dotCount = 0;
@@ -26,11 +39,13 @@ class _MatchingScreenState extends State<MatchingScreen> {
   String? _callRequestId;
   StreamSubscription? _matchingSubscription;
   double _userRating = 100.0;
+  bool _hasAIFilterAccess = false;
 
   @override
   void initState() {
     super.initState();
     _loadUserRating();
+    _checkAIFilterAccess();
     _startDotAnimation();
     _startMatching();
   }
@@ -50,6 +65,23 @@ class _MatchingScreenState extends State<MatchingScreen> {
       });
     } catch (e) {
       print('ユーザーレーティング取得エラー: $e');
+    }
+  }
+  
+  Future<void> _checkAIFilterAccess() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+      
+      if (doc.exists) {
+        final rating = doc.data()?['rating']?.toDouble() ?? 3.0;
+        setState(() {
+          _hasAIFilterAccess = _aiFilterService.hasAccess(rating);
+        });
+      }
     }
   }
 
@@ -75,9 +107,11 @@ class _MatchingScreenState extends State<MatchingScreen> {
     });
 
     try {
-      // 通話リクエストを作成（AI強制マッチングフラグを渡す）
+      // 通話リクエストを作成（AI強制マッチングフラグとAIフィルター設定を渡す）
       _callRequestId = await _matchingService.createCallRequest(
         forceAIMatch: widget.forceAIMatch,
+        enableAIFilter: widget.enableAIFilter,
+        privacyMode: widget.privacyMode,
       );
 
       // マッチング監視開始
@@ -113,6 +147,9 @@ class _MatchingScreenState extends State<MatchingScreen> {
           callId: match.callId,
           partnerId: match.partnerId,
           channelName: match.channelName,
+          isVideoCall: widget.isVideoCall,
+          enableAIFilter: widget.enableAIFilter,
+          privacyMode: widget.privacyMode,
         ),
       ),
     );
@@ -170,7 +207,11 @@ class _MatchingScreenState extends State<MatchingScreen> {
           onPressed: _cancelMatching,
         ),
         title: Text(
-          widget.forceAIMatch ? 'AI練習モード' : '音声通話マッチング',
+          widget.forceAIMatch 
+              ? 'AI練習モード' 
+              : widget.isVideoCall 
+                  ? 'ビデオ通話マッチング' 
+                  : '音声通話マッチング',
           style: const TextStyle(
             color: Color(0xFF1E1E1E),
             fontFamily: 'Catamaran',

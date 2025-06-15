@@ -4,6 +4,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../services/evaluation_service.dart';
 import 'voice_call_screen.dart';
+import 'video_call_screen.dart';
 import 'voice_call_simulation_screen.dart';
 import '../config/app_config.dart';
 
@@ -79,12 +80,18 @@ class PreCallScreen extends StatefulWidget {
   final String callId;
   final String partnerId;
   final String channelName;
+  final bool isVideoCall;
+  final bool enableAIFilter;
+  final bool privacyMode;
 
   const PreCallScreen({
     super.key,
     required this.callId,
     required this.partnerId,
     required this.channelName,
+    this.isVideoCall = false,
+    this.enableAIFilter = false,
+    this.privacyMode = false,
   });
 
   @override
@@ -213,11 +220,19 @@ class _PreCallScreenState extends State<PreCallScreen>
                 callId: widget.callId,
                 partnerId: widget.partnerId,
               )
-            : VoiceCallScreen(
-                channelName: widget.channelName,
-                callId: widget.callId,
-                partnerId: widget.partnerId,
-              ),
+            : widget.isVideoCall
+                ? VideoCallScreen(
+                    channelName: widget.channelName,
+                    callId: widget.callId,
+                    partnerId: widget.partnerId,
+                    enableAIFilter: widget.enableAIFilter,
+                    privacyMode: widget.privacyMode,
+                  )
+                : VoiceCallScreen(
+                    channelName: widget.channelName,
+                    callId: widget.callId,
+                    partnerId: widget.partnerId,
+                  ),
       ),
     );
   }
