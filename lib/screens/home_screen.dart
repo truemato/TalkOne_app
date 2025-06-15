@@ -1,10 +1,108 @@
 // lib/screens/home_screen.dart
 
 import 'package:flutter/material.dart';
+import '../services/agora_call_service.dart';
+import '../services/ai_filter_service.dart';
 import 'matching_screen.dart';
+import 'voicevox_test_screen.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
+  
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  final AIFilterService _aiFilterService = AIFilterService();
+  bool _hasAIFilterAccess = false;
+  
+  @override
+  void initState() {
+    super.initState();
+    _checkAIFilterAccess();
+  }
+  
+  Future<void> _checkAIFilterAccess() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+      
+      if (doc.exists) {
+        final rating = doc.data()?['rating']?.toDouble() ?? 3.0;
+        setState(() {
+          _hasAIFilterAccess = _aiFilterService.hasAccess(rating);
+        });
+      }
+    }
+  }
+  
+  void _showAIFilterOptionDialog() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('ビデオ通話設定'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('素顔を隠すAIフィルターを使用しますか？'),
+              const SizedBox(height: 16),
+              if (!_hasAIFilterAccess)
+                const Text(
+                  'AIフィルターはレーティング4.0以上のユーザーのみ利用できます',
+                  style: TextStyle(color: Colors.red, fontSize: 12),
+                ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                _startVideoCall(enableAIFilter: false, privacyMode: false);
+              },
+              child: const Text('通常のビデオ通話'),
+            ),
+            if (_hasAIFilterAccess) ...[
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  _startVideoCall(enableAIFilter: true, privacyMode: false);
+                },
+                child: const Text('AIフィルター使用'),
+              ),
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  _startVideoCall(enableAIFilter: true, privacyMode: true);
+                },
+                style: TextButton.styleFrom(foregroundColor: Colors.red),
+                child: const Text('プライバシーモード'),
+              ),
+            ],
+          ],
+        );
+      },
+    );
+  }
+  
+  void _startVideoCall({bool enableAIFilter = false, bool privacyMode = false}) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => MatchingScreen(
+          isVideoCall: true,
+          enableAIFilter: enableAIFilter,
+          privacyMode: privacyMode,
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -75,7 +173,34 @@ class HomeScreen extends StatelessWidget {
                 ),
               ),
               
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
+              
+              // ビデオ通話ボタン
+              SizedBox(
+                width: double.infinity,
+                height: 60,
+                child: ElevatedButton.icon(
+                  onPressed: _showAIFilterOptionDialog,
+                  icon: const Icon(Icons.videocam, size: 28),
+                  label: const Text(
+                    'ビデオ通話を開始',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFB3E5FC),
+                    foregroundColor: Colors.black,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    elevation: 2,
+                  ),
+                ),
+              ),
+              
+              const SizedBox(height: 16),
               
               // AI練習ボタン
               SizedBox(
@@ -105,6 +230,80 @@ class HomeScreen extends StatelessWidget {
                       borderRadius: BorderRadius.circular(20),
                     ),
                     elevation: 2,
+                  ),
+                ),
+              ),
+              
+              const SizedBox(height: 16),
+              
+              // VOICEVOXテストボタン
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const VoiceVoxTestScreen(),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.record_voice_over, size: 20),
+                  label: const Text(
+                    'VOICEVOX テスト',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFE1BEE7),
+                    foregroundColor: Colors.black,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(15),
+                    ),
+                    elevation: 1,
+                  ),
+                ),
+              ),
+              
+              const SizedBox(height: 16),
+              
+              // 診断ボタン
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton.icon(
+                  onPressed: () async {
+                    // Agora接続テスト
+                    final agoraService = AgoraCallService();
+                    final success = await agoraService.testConnection();
+                    
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(success ? 'Agora接続テスト成功' : 'Agora接続テスト失敗'),
+                          backgroundColor: success ? Colors.green : Colors.red,
+                        ),
+                      );
+                    }
+                  },
+                  icon: const Icon(Icons.network_check, size: 20),
+                  label: const Text(
+                    'Agora接続テスト',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFFFE0B2),
+                    foregroundColor: Colors.black,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(15),
+                    ),
+                    elevation: 1,
                   ),
                 ),
               ),
