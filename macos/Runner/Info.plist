@@ -28,5 +28,24 @@
 	<string>MainMenu</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	
+	<!-- 音声・マイク権限 -->
+	<key>NSMicrophoneUsageDescription</key>
+	<string>TalkOneは音声通話とAI音声チャット機能のためにマイクへのアクセスが必要です。</string>
+	
+	<!-- カメラ権限 -->
+	<key>NSCameraUsageDescription</key>
+	<string>TalkOneはビデオ通話機能のためにカメラへのアクセスが必要です。</string>
+	
+	<!-- 音声認識権限 -->
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>TalkOneはAI音声チャット機能で音声をテキストに変換するため音声認識が必要です。</string>
+	
+	<!-- ネットワーク権限 -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+	</dict>
 </dict>
 </plist>

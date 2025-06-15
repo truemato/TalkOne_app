@@ -1,6 +1,7 @@
 // lib/screens/home_screen.dart
 
 import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../services/agora_call_service.dart';
 import '../services/ai_filter_service.dart';
 import 'matching_screen.dart';
@@ -91,6 +92,49 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
   
+  Future<void> _checkPermissionsBeforeCall() async {
+    print('ホーム画面: 事前権限確認開始');
+    
+    try {
+      // マイク権限確認
+      final micStatus = await Permission.microphone.status;
+      print('ホーム画面: マイク権限状態: $micStatus');
+      
+      // カメラ権限確認
+      final cameraStatus = await Permission.camera.status;
+      print('ホーム画面: カメラ権限状態: $cameraStatus');
+      
+      if (micStatus != PermissionStatus.granted || cameraStatus != PermissionStatus.granted) {
+        // 権限説明ダイアログを表示
+        if (mounted) {
+          final shouldContinue = await showDialog<bool>(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('権限が必要です'),
+              content: const Text('ビデオ通話にはマイクとカメラの権限が必要です。\n設定から権限を許可してください。'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  child: const Text('キャンセル'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(true),
+                  child: const Text('設定を開く'),
+                ),
+              ],
+            ),
+          );
+          
+          if (shouldContinue == true) {
+            await openAppSettings();
+          }
+        }
+      }
+    } catch (e) {
+      print('ホーム画面: 権限確認エラー: $e');
+    }
+  }
+  
   void _startVideoCall({bool enableAIFilter = false, bool privacyMode = false}) {
     Navigator.push(
       context,
@@ -130,7 +174,7 @@ class _HomeScreenState extends State<HomeScreen> {
               
               // 説明テキスト
               const Text(
-                'レーティングベースマッチングで\n同じレベルの相手と会話しよう',
+                'AIフィルターで素顔を完全に隠して\n安全に匿名ビデオ通話できます',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 18,
@@ -175,17 +219,50 @@ class _HomeScreenState extends State<HomeScreen> {
               
               const SizedBox(height: 16),
               
-              // ビデオ通話ボタン
+              // 通常のビデオ通話ボタン  
               SizedBox(
                 width: double.infinity,
                 height: 60,
                 child: ElevatedButton.icon(
-                  onPressed: _showAIFilterOptionDialog,
+                  onPressed: () {
+                    // 通常のビデオ通話（AIフィルターなし）
+                    _startVideoCall(enableAIFilter: false, privacyMode: false);
+                  },
                   icon: const Icon(Icons.videocam, size: 28),
                   label: const Text(
-                    'ビデオ通話を開始',
+                    '通常のビデオ通話',
                     style: TextStyle(
-                      fontSize: 20,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF90CAF9),
+                    foregroundColor: Colors.black,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    elevation: 2,
+                  ),
+                ),
+              ),
+              
+              const SizedBox(height: 16),
+              
+              // プライバシー保護ビデオ通話ボタン
+              SizedBox(
+                width: double.infinity,
+                height: 60,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    // AIフィルター有効なビデオ通話
+                    _startVideoCall(enableAIFilter: true, privacyMode: true);
+                  },
+                  icon: const Icon(Icons.face_retouching_natural, size: 28),
+                  label: const Text(
+                    'プライバシー保護ビデオ通話',
+                    style: TextStyle(
+                      fontSize: 18,
                       fontWeight: FontWeight.w600,
                     ),
                   ),

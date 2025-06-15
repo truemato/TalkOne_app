@@ -21,10 +21,15 @@ class AIFilterService {
     private init() {}
     
     struct FilterParams {
-        var threshold1: CGFloat = 100.0
-        var threshold2: CGFloat = 200.0
+        var threshold1: CGFloat = 100.0  // Python: threshold1 = 100
+        var threshold2: CGFloat = 200.0  // Python: threshold2 = 200
         var enableColorful: Bool = true
         var detectFaceOnly: Bool = true
+        
+        // HoughLinesP parameters to match Python code
+        var houghThreshold: Int = 30      // Python: threshold = 30
+        var minLineLength: Int = 80       // Python: minLineLength = 80
+        var maxLineGap: Int = 5           // Python: maxLineGap = 5
     }
     
     /// Apply AI filter to transform face into colorful edge detection
@@ -83,20 +88,31 @@ class AIFilterService {
         ctx.fill(CGRect(origin: .zero, size: extent.size))
         
         if !lines.isEmpty {
-            // Draw colored lines based on angle
+            // Draw colored lines based on angle (matching Python algorithm exactly)
             for line in lines {
-                let angle = atan2(line.end.y - line.start.y, line.end.x - line.start.x)
-                let degrees = (angle * 180.0 / .pi) + 90
+                // Python: a = (x1 - x2) / (y1 - y2)
+                let x1 = line.start.x, y1 = line.start.y
+                let x2 = line.end.x, y2 = line.end.y
                 
-                // Convert angle to hue (0-360 degrees to 0-1 hue)
-                let hue = CGFloat(degrees.truncatingRemainder(dividingBy: 360.0)) / 360.0
-                let color = UIColor(hue: hue, saturation: 1.0, brightness: 1.0, alpha: 1.0)
-                
-                ctx.setStrokeColor(color.cgColor)
-                ctx.setLineWidth(3.0)
-                ctx.move(to: line.start)
-                ctx.addLine(to: line.end)
-                ctx.strokePath()
+                if y1 != y2 {
+                    let a = (x1 - x2) / (y1 - y2)
+                    // Python: b = round(math.degrees(math.atan(a))) + 90
+                    let angleRadians = atan(a)
+                    let degrees = round(angleRadians * 180.0 / .pi) + 90
+                    
+                    // Python: c = hsv_to_rgb(b, 255, 255)
+                    let hsvColor = hsvToRgb(h: Int(degrees), s: 255, v: 255)
+                    let color = UIColor(red: CGFloat(hsvColor.r)/255.0, 
+                                      green: CGFloat(hsvColor.g)/255.0, 
+                                      blue: CGFloat(hsvColor.b)/255.0, 
+                                      alpha: 1.0)
+                    
+                    ctx.setStrokeColor(color.cgColor)
+                    ctx.setLineWidth(3.0)
+                    ctx.move(to: line.start)
+                    ctx.addLine(to: line.end)
+                    ctx.strokePath()
+                }
             }
         } else {
             // If no lines detected, show rainbow gradient edges
@@ -206,5 +222,30 @@ class AIFilterService {
     private struct Line {
         let start: CGPoint
         let end: CGPoint
+    }
+    
+    /// HSV to RGB conversion matching Python cv2.cvtColor(HSV2BGR)
+    private func hsvToRgb(h: Int, s: Int, v: Int) -> (r: Int, g: Int, b: Int) {
+        let hNorm = CGFloat(h % 360) / 360.0
+        let sNorm = CGFloat(s) / 255.0
+        let vNorm = CGFloat(v) / 255.0
+        
+        let c = vNorm * sNorm
+        let x = c * (1 - abs((hNorm * 6).truncatingRemainder(dividingBy: 2) - 1))
+        let m = vNorm - c
+        
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0
+        
+        let sector = Int(hNorm * 6)
+        switch sector {
+        case 0: (r, g, b) = (c, x, 0)
+        case 1: (r, g, b) = (x, c, 0)
+        case 2: (r, g, b) = (0, c, x)
+        case 3: (r, g, b) = (0, x, c)
+        case 4: (r, g, b) = (x, 0, c)
+        default: (r, g, b) = (c, 0, x)
+        }
+        
+        return (r: Int((r + m) * 255), g: Int((g + m) * 255), b: Int((b + m) * 255))
     }
 }

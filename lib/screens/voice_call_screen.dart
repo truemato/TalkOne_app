@@ -6,6 +6,8 @@ import '../services/call_matching_service.dart';
 import '../config/agora_config.dart';
 import 'evaluation_screen.dart';
 import '../services/ai_voice_chat_service.dart';
+import '../services/gemini_live_voice_service.dart';
+import '../services/audio_stream_service.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 
@@ -32,9 +34,12 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
   
   // AI音声会話用
   AIVoiceChatService? _aiVoiceChatService;
+  GeminiLiveVoiceService? _geminiLiveService;
+  AudioStreamService? _audioStreamService;
   final SpeechToText _speech = SpeechToText();
   final FlutterTts _tts = FlutterTts();
   bool _isAICall = false;
+  bool _useGeminiLive = true; // Gemini Live APIを使用するかどうか
   String _currentTranscript = '';
   String _aiResponse = '';
   
@@ -84,6 +89,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
         _partnerJoined = true;
         _connectionStatus = '通話中';
       });
+      _agoraService.recordCallStart(); // 通話開始時刻を記録
       _startCallTimer();
       print('相手が参加しました: $uid');
     };
@@ -183,6 +189,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
         _partnerJoined = true;
         _connectionStatus = 'AI音声会話を準備中...';
       });
+      _agoraService.recordCallStart(); // AI通話の開始時刻も記録
       _startCallTimer();
       await _initializeAIVoiceChat();
       print('AI通話を開始しました');

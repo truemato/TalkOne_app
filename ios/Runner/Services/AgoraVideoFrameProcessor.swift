@@ -1,7 +1,6 @@
 import Foundation
 import UIKit
 import CoreImage
-// import AgoraRtcKit // Temporarily disabled due to potential compatibility issues
 
 class AgoraVideoFrameProcessor: NSObject {
     
@@ -15,17 +14,105 @@ class AgoraVideoFrameProcessor: NSObject {
     
     func setFilterEnabled(_ enabled: Bool) {
         isFilterEnabled = enabled
+        print("AgoraVideoFrameProcessor: Filter enabled = \(enabled)")
     }
     
     func setFilterParams(threshold1: Int, threshold2: Int, colorful: Bool) {
         filterParams.threshold1 = CGFloat(threshold1)
         filterParams.threshold2 = CGFloat(threshold2)
         filterParams.enableColorful = colorful
+        print("AgoraVideoFrameProcessor: Params set - threshold1=\(threshold1), threshold2=\(threshold2), colorful=\(colorful)")
+    }
+    
+    /// Process video frame with AI filter
+    func processVideoFrame(_ pixelBuffer: CVPixelBuffer) -> CVPixelBuffer {
+        guard isFilterEnabled else {
+            return pixelBuffer
+        }
+        
+        // Convert CVPixelBuffer to UIImage
+        guard let inputImage = pixelBufferToUIImage(pixelBuffer) else {
+            return pixelBuffer
+        }
+        
+        // Apply AI filter using our service
+        guard let filteredImage = aiFilterService.applyAIFilter(to: inputImage, params: filterParams) else {
+            return pixelBuffer
+        }
+        
+        // Convert back to CVPixelBuffer
+        guard let outputPixelBuffer = uiImageToPixelBuffer(filteredImage) else {
+            return pixelBuffer
+        }
+        
+        return outputPixelBuffer
+    }
+    
+    /// Convert CVPixelBuffer to UIImage
+    private func pixelBufferToUIImage(_ pixelBuffer: CVPixelBuffer) -> UIImage? {
+        let ciImage = CIImage(cvPixelBuffer: pixelBuffer)
+        let context = CIContext()
+        
+        guard let cgImage = context.createCGImage(ciImage, from: ciImage.extent) else {
+            return nil
+        }
+        
+        return UIImage(cgImage: cgImage)
+    }
+    
+    /// Convert UIImage to CVPixelBuffer
+    private func uiImageToPixelBuffer(_ image: UIImage) -> CVPixelBuffer? {
+        let attrs = [
+            kCVPixelBufferCGImageCompatibilityKey: kCFBooleanTrue,
+            kCVPixelBufferCGBitmapContextCompatibilityKey: kCFBooleanTrue
+        ] as CFDictionary
+        
+        var pixelBuffer: CVPixelBuffer?
+        let status = CVPixelBufferCreate(
+            kCFAllocatorDefault,
+            Int(image.size.width),
+            Int(image.size.height),
+            kCVPixelFormatType_32ARGB,
+            attrs,
+            &pixelBuffer
+        )
+        
+        guard status == kCVReturnSuccess, let buffer = pixelBuffer else {
+            return nil
+        }
+        
+        CVPixelBufferLockBaseAddress(buffer, CVPixelBufferLockFlags(rawValue: 0))
+        let pixelData = CVPixelBufferGetBaseAddress(buffer)
+        
+        let rgbColorSpace = CGColorSpaceCreateDeviceRGB()
+        guard let context = CGContext(
+            data: pixelData,
+            width: Int(image.size.width),
+            height: Int(image.size.height),
+            bitsPerComponent: 8,
+            bytesPerRow: CVPixelBufferGetBytesPerRow(buffer),
+            space: rgbColorSpace,
+            bitmapInfo: CGImageAlphaInfo.noneSkipFirst.rawValue
+        ) else {
+            CVPixelBufferUnlockBaseAddress(buffer, CVPixelBufferLockFlags(rawValue: 0))
+            return nil
+        }
+        
+        context.translateBy(x: 0, y: image.size.height)
+        context.scaleBy(x: 1.0, y: -1.0)
+        
+        UIGraphicsPushContext(context)
+        image.draw(in: CGRect(x: 0, y: 0, width: image.size.width, height: image.size.height))
+        UIGraphicsPopContext()
+        
+        CVPixelBufferUnlockBaseAddress(buffer, CVPixelBufferLockFlags(rawValue: 0))
+        
+        return buffer
     }
     
     func release() {
-        // Cleanup resources
         isFilterEnabled = false
+        print("AgoraVideoFrameProcessor: Released")
     }
 }
 

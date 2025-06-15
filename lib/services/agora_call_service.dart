@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:agora_rtc_engine/agora_rtc_engine.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../config/agora_config.dart';
+import 'agora_token_service.dart';
 
 enum AgoraConnectionState {
   disconnected,
@@ -16,7 +17,15 @@ class AgoraCallService {
   RtcEngine? _engine;
   bool _isInitialized = false;
   bool _isMuted = false;
+  bool _isVideoEnabled = false;
+  bool _isFrontCamera = true;
   AgoraConnectionState _connectionState = AgoraConnectionState.disconnected;
+  
+  // トークン管理
+  String? _currentToken;
+  String? _currentChannelName;
+  int? _currentUid;
+  Timer? _tokenRefreshTimer;
   
   // コールバック関数
   Function(String uid)? onUserJoined;
@@ -27,6 +36,43 @@ class AgoraCallService {
   // 音声レベルコールバック
   Function(int volume)? onAudioVolumeIndication;
   
+  // ビデオコールバック
+  Function(String uid, int width, int height)? onRemoteVideoStats;
+  
+  // エンジンのgetter（ビデオ通話で必要）
+  RtcEngine? get engine => _engine;
+  
+  // 接続テスト用の簡単なメソッド
+  Future<bool> testConnection() async {
+    try {
+      if (!_isInitialized) {
+        final success = await initialize();
+        if (!success) return false;
+      }
+      
+      // テスト用チャンネルに参加してすぐ離脱
+      final testChannelName = 'test_connection_${DateTime.now().millisecondsSinceEpoch}';
+      print('Agora: 接続テスト開始 - $testChannelName');
+      
+      await _engine!.joinChannel(
+        token: '',
+        channelId: testChannelName,
+        uid: 0,
+        options: const ChannelMediaOptions(),
+      );
+      
+      // 2秒待って離脱
+      await Future.delayed(const Duration(seconds: 2));
+      await _engine!.leaveChannel();
+      
+      print('Agora: 接続テスト完了');
+      return true;
+    } catch (e) {
+      print('Agora: 接続テストエラー - $e');
+      return false;
+    }
+  }
+  
   // Agora Engineを初期化
   Future<bool> initialize() async {
     if (_isInitialized) return true;
@@ -36,12 +82,51 @@ class AgoraCallService {
       await _requestPermissions();
       
       // Agora Engineを作成
+      print('Agora: エンジン作成開始...');
       _engine = createAgoraRtcEngine();
+      
+      print('Agora: エンジン初期化開始 - App ID: ${AgoraConfig.appId}');
       await _engine!.initialize(RtcEngineContext(
         appId: AgoraConfig.appId,
         channelProfile: ChannelProfileType.channelProfileCommunication,
-        audioScenario: AudioScenarioType.audioScenarioChatroom,
+        audioScenario: AudioScenarioType.audioScenarioDefault,
       ));
+      
+      // 高品質音声設定
+      await _engine!.setAudioProfile(
+        profile: AudioProfileType.audioProfileMusicHighQuality,
+        scenario: AudioScenarioType.audioScenarioDefault,
+      );
+      
+      // ビデオエンコーダー設定
+      await _engine!.setVideoEncoderConfiguration(
+        const VideoEncoderConfiguration(
+          dimensions: VideoDimensions(width: 640, height: 480),
+          frameRate: 15,
+          bitrate: 0, // 自動調整
+          orientationMode: OrientationMode.orientationModeAdaptive,
+          degradationPreference: DegradationPreference.maintainQuality,
+        ),
+      );
+      
+      // エコーキャンセレーション有効化
+      await _engine!.enableAudioVolumeIndication(
+        interval: 300,
+        smooth: 3,
+        reportVad: false,
+      );
+      
+      // ネットワーク品質最適化
+      await _engine!.enableDualStreamMode(enabled: true);
+      
+      // オーディオ前処理設定（ノイズ除去、エコーキャンセレーション強化）
+      await _engine!.setAudioEffectPreset(AudioEffectPreset.audioEffectOff);
+      await _engine!.setVoiceBeautifierPreset(VoiceBeautifierPreset.voiceBeautifierOff);
+      
+      // ネットワーク適応を有効化
+      await _engine!.setClientRole(role: ClientRoleType.clientRoleBroadcaster);
+      
+      print('Agora: Engine初期化完了（高品質設定適用）');
       
       // イベントハンドラーを設定
       _engine!.registerEventHandler(RtcEngineEventHandler(
@@ -84,22 +169,51 @@ class AgoraCallService {
         },
         onError: (ErrorCodeType err, String msg) {
           print('Agora エラー: $err - $msg');
-          onError?.call('通話エラー: $msg');
+          print('エラーコード詳細: ${err.toString()}');
+          
+          String userFriendlyMessage = 'エラーが発生しました';
+          switch (err) {
+            case ErrorCodeType.errInvalidAppId:
+              userFriendlyMessage = 'アプリIDが無効です';
+              break;
+            case ErrorCodeType.errInvalidChannelName:
+              userFriendlyMessage = 'チャンネル名が無効です';
+              break;
+            case ErrorCodeType.errNoServerResources:
+              userFriendlyMessage = 'サーバーリソースが不足しています';
+              break;
+            case ErrorCodeType.errTokenExpired:
+              userFriendlyMessage = 'トークンの有効期限が切れています';
+              break;
+            case ErrorCodeType.errInvalidToken:
+              userFriendlyMessage = 'トークンが無効です';
+              break;
+            case ErrorCodeType.errConnectionInterrupted:
+              userFriendlyMessage = 'ネットワーク接続が中断されました';
+              break;
+            case ErrorCodeType.errConnectionLost:
+              userFriendlyMessage = 'ネットワーク接続が失われました';
+              break;
+            default:
+              userFriendlyMessage = '通話エラー: $msg';
+          }
+          
+          onError?.call(userFriendlyMessage);
         },
       ));
       
-      // 音声設定
-      await _engine!.setAudioProfile(
-        profile: AudioProfileType.audioProfileMusicStandard,
-        scenario: AudioScenarioType.audioScenarioChatroom,
-      );
+      // 基本的な音声設定
+      await _engine!.enableAudio();
+      await _engine!.setDefaultAudioRouteToSpeakerphone(true);
       
       // 音声レベル監視を有効化
       await _engine!.enableAudioVolumeIndication(
-        interval: 200,
+        interval: 500,
         smooth: 3,
         reportVad: true,
       );
+      
+      print('Agora: 音声設定完了');
       
       _isInitialized = true;
       return true;
@@ -112,7 +226,34 @@ class AgoraCallService {
   
   // 権限を要求
   Future<void> _requestPermissions() async {
-    await [Permission.microphone].request();
+    // iOS では段階的に権限を要求
+    print('Agora: 権限確認開始');
+    
+    // まずマイク権限の現在の状態を確認
+    final micCurrent = await Permission.microphone.status;
+    print('Agora: 現在のマイク権限状態: $micCurrent');
+    
+    if (micCurrent != PermissionStatus.granted) {
+      final micStatus = await Permission.microphone.request();
+      print('Agora: マイク権限要求結果: $micStatus');
+      
+      if (micStatus != PermissionStatus.granted) {
+        throw Exception('マイクのアクセス許可が必要です。設定から許可してください。');
+      }
+    }
+    
+    // ビデオが有効な場合のみカメラ権限を要求
+    if (_isVideoEnabled) {
+      final camCurrent = await Permission.camera.status;
+      print('Agora: 現在のカメラ権限状態: $camCurrent');
+      
+      if (camCurrent != PermissionStatus.granted) {
+        final camStatus = await Permission.camera.request();
+        print('Agora: カメラ権限要求結果: $camStatus');
+      }
+    }
+    
+    print('Agora: 権限確認完了');
   }
   
   // チャンネルに参加
@@ -126,20 +267,58 @@ class AgoraCallService {
       _setConnectionState(AgoraConnectionState.connecting);
       
       final uid = DateTime.now().millisecondsSinceEpoch % 1000000; // 簡単なUID生成
+      _currentChannelName = channelName;
+      _currentUid = uid;
       
-      await _engine!.joinChannel(
-        token: "",  // テスト用：空文字列（テストモード）
-        channelId: channelName,
-        uid: uid,
-        options: const ChannelMediaOptions(
-          channelProfile: ChannelProfileType.channelProfileCommunication,
-          clientRoleType: ClientRoleType.clientRoleBroadcaster,
-          autoSubscribeAudio: true,
-          publishMicrophoneTrack: true,
-        ),
+      String? agoraToken;
+      
+      // 本番環境でトークン認証を使用する場合
+      if (AgoraConfig.useTokenAuthentication) {
+        print('Agora: 本番モード - トークンを取得中...');
+        agoraToken = await AgoraTokenService.getToken(
+          channelName: channelName,
+          uid: uid,
+          callType: _isVideoEnabled ? 'video' : 'voice',
+        );
+        
+        if (agoraToken == null) {
+          print('Agora: トークン取得に失敗しました');
+          _setConnectionState(AgoraConnectionState.failed);
+          onError?.call('認証に失敗しました。ネットワーク接続を確認してください。');
+          return false;
+        }
+        
+        _currentToken = agoraToken;
+        print('Agora: トークン取得成功');
+        
+        // トークンの自動更新タイマーを開始（50分後に更新）
+        _startTokenRefreshTimer();
+      } else {
+        // テストモード
+        print('Agora: テストモード - トークン不要');
+        agoraToken = AgoraConfig.tempToken;
+      }
+      
+      print('Agora: チャンネル参加試行 - Channel: $channelName, UID: $uid, Token: ${agoraToken == null ? "null" : "設定済み"}');
+      
+      // チャンネルメディアオプションを設定
+      final mediaOptions = ChannelMediaOptions(
+        clientRoleType: ClientRoleType.clientRoleBroadcaster,
+        channelProfile: ChannelProfileType.channelProfileCommunication,
+        autoSubscribeAudio: true, // 音声自動購読
+        autoSubscribeVideo: _isVideoEnabled, // ビデオ自動購読
+        publishMicrophoneTrack: true, // マイク音声を送信
+        publishCameraTrack: _isVideoEnabled, // カメラ映像を送信（ビデオ有効時のみ）
       );
       
-      print('Agora: チャンネル参加開始 - $channelName (UID: $uid)');
+      await _engine!.joinChannel(
+        token: agoraToken ?? '', // nullの場合は空文字列
+        channelId: channelName,
+        uid: uid,
+        options: mediaOptions,
+      );
+      
+      print('Agora: チャンネル参加コマンド送信完了 - $channelName (UID: $uid)');
       return true;
     } catch (e) {
       print('Agora: チャンネル参加エラー - $e');
@@ -152,8 +331,27 @@ class AgoraCallService {
   // チャンネルから離脱
   Future<void> leaveChannel() async {
     if (_engine != null) {
+      // トークン更新タイマーを停止
+      _tokenRefreshTimer?.cancel();
+      _tokenRefreshTimer = null;
+      
       await _engine!.leaveChannel();
       _setConnectionState(AgoraConnectionState.disconnected);
+      
+      // 通話終了を記録（本番モードの場合）
+      if (AgoraConfig.useTokenAuthentication && _currentChannelName != null) {
+        final callDuration = getCallDuration();
+        await AgoraTokenService.recordCallEnd(
+          channelName: _currentChannelName!,
+          duration: callDuration,
+          callType: _isVideoEnabled ? 'video' : 'voice',
+        );
+      }
+      
+      _currentToken = null;
+      _currentChannelName = null;
+      _currentUid = null;
+      
       print('Agora: チャンネルから離脱');
     }
   }
@@ -173,6 +371,77 @@ class AgoraCallService {
     return _isMuted;
   }
   
+  // ビデオを有効化
+  Future<void> enableVideo() async {
+    if (_engine != null) {
+      await _engine!.enableVideo();
+      
+      // ビデオ設定
+      await _engine!.setVideoEncoderConfiguration(
+        const VideoEncoderConfiguration(
+          dimensions: VideoDimensions(width: 640, height: 480),
+          frameRate: 30,
+          bitrate: 0,
+          orientationMode: OrientationMode.orientationModeAdaptive,
+        ),
+      );
+      
+      _isVideoEnabled = true;
+      print('Agora: ビデオ有効化');
+    }
+  }
+  
+  // ビデオを無効化
+  Future<void> disableVideo() async {
+    if (_engine != null) {
+      await _engine!.disableVideo();
+      _isVideoEnabled = false;
+      print('Agora: ビデオ無効化');
+    }
+  }
+  
+  // カメラを切り替え
+  Future<void> switchCamera() async {
+    if (_engine != null && _isVideoEnabled) {
+      await _engine!.switchCamera();
+      _isFrontCamera = !_isFrontCamera;
+      print('Agora: カメラ切り替え - ${_isFrontCamera ? "前面" : "背面"}');
+    }
+  }
+  
+  // ローカルビデオのON/OFF
+  Future<void> muteLocalVideo(bool mute) async {
+    if (_engine != null) {
+      await _engine!.muteLocalVideoStream(mute);
+      print('Agora: ローカルビデオ${mute ? "ミュート" : "ミュート解除"}');
+    }
+  }
+  
+  // 美顔フィルターを有効化
+  Future<void> setBeautyEffect({
+    double smoothness = 0.5,
+    double brightness = 0.5,
+    double redness = 0.5,
+  }) async {
+    if (_engine != null) {
+      await _engine!.setBeautyEffectOptions(
+        enabled: true,
+        options: BeautyOptions(
+          lighteningContrastLevel: LighteningContrastLevel.lighteningContrastNormal,
+          lighteningLevel: brightness,
+          smoothnessLevel: smoothness,
+          rednessLevel: redness,
+        ),
+      );
+    }
+  }
+  
+  // ビデオが有効かどうか
+  bool get isVideoEnabled => _isVideoEnabled;
+  
+  // 前面カメラを使用しているか
+  bool get isFrontCamera => _isFrontCamera;
+  
   // 接続状態を更新
   void _setConnectionState(AgoraConnectionState state) {
     _connectionState = state;
@@ -182,9 +451,65 @@ class AgoraCallService {
   // 現在の接続状態を取得
   AgoraConnectionState get connectionState => _connectionState;
   
+  // トークンの自動更新タイマーを開始
+  void _startTokenRefreshTimer() {
+    _tokenRefreshTimer?.cancel();
+    
+    // 50分後にトークンを更新（1時間の有効期限の10分前）
+    _tokenRefreshTimer = Timer(const Duration(minutes: 50), () async {
+      await _refreshToken();
+    });
+  }
+  
+  // トークンを更新
+  Future<void> _refreshToken() async {
+    if (_currentChannelName == null || _currentToken == null || _currentUid == null) {
+      return;
+    }
+    
+    try {
+      print('Agora: トークンを更新中...');
+      final newToken = await AgoraTokenService.refreshToken(
+        channelName: _currentChannelName!,
+        oldToken: _currentToken!,
+        uid: _currentUid!,
+      );
+      
+      if (newToken != null && _engine != null) {
+        await _engine!.renewToken(newToken);
+        _currentToken = newToken;
+        print('Agora: トークン更新成功');
+        
+        // 次の更新タイマーを設定
+        _startTokenRefreshTimer();
+      } else {
+        print('Agora: トークン更新に失敗しました');
+        onError?.call('認証の更新に失敗しました。通話を再開してください。');
+      }
+    } catch (e) {
+      print('Agora: トークン更新エラー - $e');
+      onError?.call('認証エラーが発生しました');
+    }
+  }
+  
+  // 通話開始時刻を記録
+  DateTime? _callStartTime;
+  
+  // 通話開始を記録
+  void recordCallStart() {
+    _callStartTime = DateTime.now();
+  }
+  
+  // 通話時間を取得（秒）
+  int getCallDuration() {
+    if (_callStartTime == null) return 0;
+    return DateTime.now().difference(_callStartTime!).inSeconds;
+  }
+  
   // リソース解放
   Future<void> dispose() async {
     if (_engine != null) {
+      _tokenRefreshTimer?.cancel();
       await _engine!.leaveChannel();
       await _engine!.release();
       _engine = null;

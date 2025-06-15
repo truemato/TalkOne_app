@@ -2,6 +2,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:agora_rtc_engine/agora_rtc_engine.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../services/agora_call_service.dart';
 import '../services/call_matching_service.dart';
 import '../services/ai_filter_service.dart';
@@ -67,6 +68,20 @@ class _VideoCallScreenState extends State<VideoCallScreen>
     super.dispose();
   }
   
+  Future<void> _requestPermissions() async {
+    // マイク権限
+    final micStatus = await Permission.microphone.request();
+    if (micStatus != PermissionStatus.granted) {
+      throw Exception('マイクのアクセス許可が必要です');
+    }
+    
+    // カメラ権限
+    final cameraStatus = await Permission.camera.request();  
+    if (cameraStatus != PermissionStatus.granted) {
+      throw Exception('カメラのアクセス許可が必要です');
+    }
+  }
+  
   Future<void> _checkUserRating() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
@@ -90,8 +105,8 @@ class _VideoCallScreenState extends State<VideoCallScreen>
   }
   
   Future<void> _autoEnableAIFilter() async {
-    // マッチング時から自動でAIフィルターを有効にする
-    if (widget.enableAIFilter && _hasAIFilterAccess) {
+    // プライバシーモードまたはユーザーがAIフィルターを有効にした場合のみ
+    if (widget.enableAIFilter && (_hasAIFilterAccess || widget.privacyMode)) {
       Future.delayed(const Duration(milliseconds: 500), () async {
         if (mounted) {
           setState(() {
@@ -99,16 +114,30 @@ class _VideoCallScreenState extends State<VideoCallScreen>
           });
           await _aiFilterService.setEnabled(true);
           
-          if (!widget.privacyMode) {
+          // Pythonコードと同じパラメータを設定
+          await _aiFilterService.updateFilterParams(
+            threshold1: 100,  // Canny edge detection threshold1
+            threshold2: 200,  // Canny edge detection threshold2  
+            colorful: true,   // Enable colorful edge effect
+          );
+          
+          if (widget.privacyMode) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
-                content: Text('AIフィルターが自動的に有効になりました'),
+                content: Text('プライバシー保護のためAIフィルターが有効になりました'),
                 duration: Duration(seconds: 2),
               ),
             );
           }
         }
       });
+    } else {
+      // 通常のビデオ通話ではAIフィルターを無効化
+      setState(() {
+        _isAIFilterEnabled = false;
+      });
+      await _aiFilterService.setEnabled(false);
+      print('通常のビデオ通話：AIフィルター無効');
     }
   }
   
