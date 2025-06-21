@@ -2,10 +2,12 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'user_profile_service.dart';
 
 class EvaluationService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final String _userId = FirebaseAuth.instance.currentUser!.uid;
+  final UserProfileService _userProfileService = UserProfileService();
 
   // 評価を送信する
   Future<void> submitEvaluation({
@@ -30,10 +32,15 @@ class EvaluationService {
       // ダミーマッチでない場合のみレーティングを更新
       if (!isDummyMatch) {
         await _updateUserRating(partnerId, rating);
-        await _updateUserRating(_userId, 0); // 自分の参加回数も更新
+        
+        // UserProfileServiceのレーティングも同期更新
+        await _syncUserProfileRating(partnerId);
       } else {
         // ダミーマッチ（AI通話）の場合、自分に+1ポイント、参加回数も更新
         await _updateUserRating(_userId, 3); // 星3相当（+1ポイント）を自分に付与
+        
+        // UserProfileServiceのレーティングも同期更新
+        await _syncUserProfileRating(_userId);
       }
 
       print('評価送信完了: $rating stars for $partnerId');
@@ -166,6 +173,32 @@ class EvaluationService {
       'id': doc.id,
       ...doc.data(),
     }).toList();
+  }
+
+  // UserProfileServiceのレーティングと同期
+  Future<void> _syncUserProfileRating(String userId) async {
+    try {
+      // 現在の評価システムのレーティングを取得
+      final currentRating = await getUserRating(userId);
+      
+      // 自分のレーティングのみUserProfileServiceで更新
+      if (userId == _userId) {
+        await _userProfileService.updateRating(currentRating.toInt());
+        print('自分のUserProfileのレーティングを同期: $userId -> $currentRating');
+      } else {
+        // 他のユーザーの場合は直接userProfilesコレクションを更新
+        await FirebaseFirestore.instance
+            .collection('userProfiles')
+            .doc(userId)
+            .set({
+          'rating': currentRating.toInt(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+        print('相手のUserProfileのレーティングを同期: $userId -> $currentRating');
+      }
+    } catch (e) {
+      print('UserProfileレーティング同期エラー: $e');
+    }
   }
 
   // レーティング帯に基づくマッチング推奨

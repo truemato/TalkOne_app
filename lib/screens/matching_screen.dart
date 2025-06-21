@@ -1,13 +1,104 @@
-// lib/screens/matching_screen.dart
-
 import 'dart:async';
+import 'dart:math';
 import 'package:flutter/material.dart';
-import '../services/call_matching_service.dart';
-import '../services/evaluation_service.dart';
-import '../services/ai_filter_service.dart';
-import 'pre_call_screen.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:lottie/lottie.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../services/call_matching_service.dart';
+import '../services/user_profile_service.dart';
+import 'pre_call_profile_screen.dart';
+
+class RateCounter extends StatefulWidget {
+  final int targetRate;
+  const RateCounter({
+    super.key,
+    this.targetRate = 1000,
+  });
+
+  @override
+  State<RateCounter> createState() => _RateCounterState();
+}
+
+class _RateCounterState extends State<RateCounter>
+    with TickerProviderStateMixin {
+  late AnimationController _rateController;
+  late Animation<int> _rateAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _rateController = AnimationController(
+      duration: const Duration(seconds: 1),
+      vsync: this,
+    );
+
+    _rateAnimation = IntTween(
+      begin: 0,
+      end: widget.targetRate,
+    ).animate(CurvedAnimation(
+      parent: _rateController,
+      curve: Curves.easeOut,
+    ));
+
+    _rateController.forward();
+  }
+
+  @override
+  void didUpdateWidget(RateCounter oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.targetRate != widget.targetRate) {
+      // targetRateが変更された場合、アニメーションを再実行
+      _rateController.reset();
+      _rateAnimation = IntTween(
+        begin: 0,
+        end: widget.targetRate,
+      ).animate(CurvedAnimation(
+        parent: _rateController,
+        curve: Curves.easeOut,
+      ));
+      _rateController.forward();
+    }
+  }
+
+  @override
+  void dispose() {
+    _rateController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 120,
+      height: 110,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            'RATE',
+            style: GoogleFonts.catamaran(
+              fontSize: 24,
+              fontWeight: FontWeight.w800,
+              color: const Color(0xFF1E1E1E),
+            ),
+          ),
+          const SizedBox(height: 4),
+          AnimatedBuilder(
+            animation: _rateAnimation,
+            builder: (context, child) => Text(
+              '${_rateAnimation.value}',
+              style: GoogleFonts.notoSans(
+                fontSize: 48,
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFF1E1E1E),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 class MatchingScreen extends StatefulWidget {
   final bool forceAIMatch;
@@ -16,8 +107,8 @@ class MatchingScreen extends StatefulWidget {
   final bool privacyMode;
   
   const MatchingScreen({
-    super.key, 
-    this.forceAIMatch = false, 
+    super.key,
+    this.forceAIMatch = false,
     this.isVideoCall = false,
     this.enableAIFilter = false,
     this.privacyMode = false,
@@ -29,91 +120,155 @@ class MatchingScreen extends StatefulWidget {
 
 class _MatchingScreenState extends State<MatchingScreen> {
   final CallMatchingService _matchingService = CallMatchingService();
-  final EvaluationService _evaluationService = EvaluationService();
-  final AIFilterService _aiFilterService = AIFilterService();
+  final UserProfileService _userProfileService = UserProfileService();
   
-  late Timer _dotTimer;
+  // テーマカラー
+  final List<Color> _themeColors = [
+    const Color(0xFF5A64ED), // 青紫
+    const Color(0xFFE91E63), // ピンク
+    const Color(0xFF4CAF50), // 緑
+    const Color(0xFFFF9800), // オレンジ
+    const Color(0xFF9C27B0), // 紫
+  ];
+  int _selectedThemeIndex = 0;
+  
+  late Timer _timer;
   int _dotCount = 0;
-  int _waitingSeconds = 0;
-  Timer? _waitingTimer;
+  int _userRating = 0; // 0を初期値として読み込み中を表示
+  int _onlineUsers = 0;
   String? _callRequestId;
   StreamSubscription? _matchingSubscription;
-  double _userRating = 100.0;
-  bool _hasAIFilterAccess = false;
+  StreamSubscription? _onlineUsersSubscription;
 
   @override
   void initState() {
     super.initState();
     _loadUserRating();
-    _checkAIFilterAccess();
-    _startDotAnimation();
+    _startOnlineUsersListener();
     _startMatching();
+    _timer = Timer.periodic(const Duration(milliseconds: 400), (timer) {
+      setState(() {
+        _dotCount = (_dotCount + 1) % 4;
+      });
+    });
   }
-  
+
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    // 画面が再表示されるたびにレーティングを更新
-    _loadUserRating();
+  void dispose() {
+    _timer.cancel();
+    _matchingSubscription?.cancel();
+    _onlineUsersSubscription?.cancel();
+    if (_callRequestId != null) {
+      _matchingService.cancelCallRequest(_callRequestId!);
+    }
+    _matchingService.dispose();
+    super.dispose();
   }
 
   Future<void> _loadUserRating() async {
     try {
-      final rating = await _evaluationService.getUserRating();
-      setState(() {
-        _userRating = rating;
-      });
-    } catch (e) {
-      print('ユーザーレーティング取得エラー: $e');
-    }
-  }
-  
-  Future<void> _checkAIFilterAccess() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      final doc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .get();
+      // まずUserProfileServiceから取得を試す
+      final profile = await _userProfileService.getUserProfile();
+      if (profile != null && profile.rating != 1000) {
+        if (mounted) {
+          setState(() {
+            _userRating = profile.rating;
+            _selectedThemeIndex = profile.themeIndex ?? 0;
+            print('MatchingScreen: UserProfileからレーティング読み込み完了 - $_userRating');
+          });
+        }
+        return;
+      }
       
-      if (doc.exists) {
-        final rating = doc.data()?['rating']?.toDouble() ?? 3.0;
+      // UserProfileがない、またはデフォルト値の場合、usersコレクションから直接取得
+      final userId = _userProfileService.getCurrentUserId();
+      if (userId != null) {
+        final userDoc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(userId)
+            .get();
+        
+        if (userDoc.exists && mounted) {
+          final userData = userDoc.data()!;
+          final rating = (userData['rating'] ?? 100.0).toDouble().toInt();
+          setState(() {
+            _userRating = rating;
+            _selectedThemeIndex = 0; // デフォルトテーマ
+            print('MatchingScreen: usersコレクションからレーティング読み込み完了 - $_userRating');
+          });
+          
+          // UserProfileにも同期保存
+          await _userProfileService.updateRating(rating);
+        } else if (mounted) {
+          // 新規ユーザーの場合、初期レーティング100を設定
+          setState(() {
+            _userRating = 100;
+            _selectedThemeIndex = 0; // デフォルトテーマ
+            print('MatchingScreen: 新規ユーザー、初期レーティング100を設定');
+          });
+          await _userProfileService.updateRating(100);
+        }
+      }
+    } catch (e) {
+      print('MatchingScreen: レーティング読み込みエラー - $e');
+      if (mounted) {
         setState(() {
-          _hasAIFilterAccess = _aiFilterService.hasAccess(rating);
+          _userRating = 100; // エラー時のフォールバック
+          _selectedThemeIndex = 0; // デフォルトテーマ
         });
       }
     }
   }
 
-  void _startDotAnimation() {
-    // 400msごとにドット数を更新
-    _dotTimer = Timer.periodic(const Duration(milliseconds: 400), (timer) {
+  void _startOnlineUsersListener() {
+    // オンラインユーザー数をリアルタイムで監視
+    _onlineUsersSubscription = FirebaseFirestore.instance
+        .collection('callRequests')
+        .snapshots()
+        .listen((snapshot) {
       if (mounted) {
-        setState(() {
-          _dotCount = (_dotCount + 1) % 4; // 0→1→2→3→0 のサイクル
+        // マッチング待ちのユーザー数をカウント
+        final waitingUsers = snapshot.docs.where((doc) {
+          final data = doc.data();
+          final status = data['status'] as String? ?? '';
+          return status == 'waiting' || status == 'matched';
+        }).length;
+
+        // 会話中のユーザー数をカウント（activeCalls コレクションから）
+        _getActiveCalls().then((activeCalls) {
+          if (mounted) {
+            final totalOnlineUsers = waitingUsers + (activeCalls * 2); // 通話は2人1組
+            setState(() {
+              _onlineUsers = totalOnlineUsers;
+            });
+          }
         });
       }
     });
+  }
+
+  Future<int> _getActiveCalls() async {
+    try {
+      // アクティブな通話数を取得
+      final activeCallsSnapshot = await FirebaseFirestore.instance
+          .collection('activeCalls')
+          .where('status', isEqualTo: 'active')
+          .get();
+      
+      return activeCallsSnapshot.docs.length;
+    } catch (e) {
+      print('アクティブ通話数取得エラー: $e');
+      return 0;
+    }
   }
 
   Future<void> _startMatching() async {
-    // 待機時間カウント開始
-    _waitingTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (mounted) {
-        setState(() {
-          _waitingSeconds++;
-        });
-      }
-    });
-
     try {
-      // 通話リクエストを作成（AI強制マッチングフラグとAIフィルター設定を渡す）
+      // 通話リクエストを作成
       _callRequestId = await _matchingService.createCallRequest(
         forceAIMatch: widget.forceAIMatch,
-        enableAIFilter: widget.enableAIFilter,
-        privacyMode: widget.privacyMode,
       );
-
+      
       // マッチング監視開始
       _matchingSubscription = _matchingService
           .startMatching(_callRequestId!)
@@ -134,22 +289,16 @@ class _MatchingScreenState extends State<MatchingScreen> {
 
   void _handleMatchSuccess(CallMatch match) {
     if (!mounted) return;
-
-    _dotTimer.cancel();
-    _waitingTimer?.cancel();
+    
+    _timer.cancel();
     _matchingSubscription?.cancel();
-
-    // PreCallScreenに遷移
+    
+    // プロフィール画面に遷移
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
-        builder: (_) => PreCallScreen(
-          callId: match.callId,
-          partnerId: match.partnerId,
-          channelName: match.channelName,
-          isVideoCall: widget.isVideoCall,
-          enableAIFilter: widget.enableAIFilter,
-          privacyMode: widget.privacyMode,
+        builder: (_) => PreCallProfileScreen(
+          match: match,
         ),
       ),
     );
@@ -157,18 +306,15 @@ class _MatchingScreenState extends State<MatchingScreen> {
 
   void _handleMatchError(String error) {
     if (!mounted) return;
-
-    _dotTimer.cancel();
-    _waitingTimer?.cancel();
-
+    
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('マッチングエラー: $error'),
         backgroundColor: Colors.red,
       ),
     );
-
-    // エラー時はホーム画面に戻る
+    
+    // ホームに戻る
     Navigator.pop(context);
   }
 
@@ -176,211 +322,155 @@ class _MatchingScreenState extends State<MatchingScreen> {
     if (_callRequestId != null) {
       await _matchingService.cancelCallRequest(_callRequestId!);
     }
-
-    _dotTimer.cancel();
-    _waitingTimer?.cancel();
-    _matchingSubscription?.cancel();
-
+    
     if (mounted) {
       Navigator.pop(context);
     }
   }
 
-  @override
-  void dispose() {
-    _dotTimer.cancel();
-    _waitingTimer?.cancel();
-    _matchingSubscription?.cancel();
-    _matchingService.dispose();
-    super.dispose();
-  }
+  Color get _currentThemeColor => _themeColors[_selectedThemeIndex];
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFE2E0F9),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFFE2E0F9),
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Color(0xFF1E1E1E)),
-          onPressed: _cancelMatching,
-        ),
-        title: Text(
-          widget.forceAIMatch 
-              ? 'AI練習モード' 
-              : widget.isVideoCall 
-                  ? 'ビデオ通話マッチング' 
-                  : '音声通話マッチング',
-          style: const TextStyle(
-            color: Color(0xFF1E1E1E),
-            fontFamily: 'Catamaran',
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-      ),
-      body: SafeArea(
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              // TalkOne ロゴ
-              const Text(
-                'TalkOne',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Color(0xFF1E1E1E),
-                  fontSize: 64,
-                  fontFamily: 'Catamaran',
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -4.48,
-                ),
+    final screenSize = MediaQuery.of(context).size;
+    final contentWidth = min(screenSize.width, 600.0);
+    final contentHeight = screenSize.height;
+
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) {
+          _cancelMatching();
+        }
+      },
+      child: Scaffold(
+        body: Stack(
+          children: [
+            // 背景色
+            Positioned.fill(
+              child: Container(
+                color: _currentThemeColor,
               ),
-
-              const SizedBox(height: 48),
-
-              // あなたのRATE / 数値
-              Column(
-                children: [
-                  const Text(
-                    'YOUR RATE',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: Color(0xFF1E1E1E),
-                      fontSize: 24,
-                      fontFamily: 'Catamaran',
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -1.68,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    '${_userRating.toInt()}',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: Color(0xFF1E1E1E),
-                      fontSize: 64,
-                      fontFamily: 'Noto Sans',
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: -2.56,
-                    ),
-                  ),
-                ],
+            ),
+            // 背景の川のLottieアニメーション
+            Positioned.fill(
+              child: Lottie.asset(
+                'aseets/animations/background_animation(river).json',
+                fit: BoxFit.cover,
+                repeat: true,
+                alignment: Alignment.center,
               ),
-
-              const SizedBox(height: 48),
-
-              // オンラインユーザー数
-              const Text(
-                'オンラインのユーザー：10人',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.black,
-                  fontSize: 20,
-                  fontFamily: 'Catamaran',
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -1.40,
-                ),
-              ),
-
-              const SizedBox(height: 32),
-
-              // 待機時間表示
-              Text(
-                '待機時間: ${_waitingSeconds}秒',
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: Color(0xFF4E3B7A),
-                  fontSize: 18,
-                  fontFamily: 'Catamaran',
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-
-              const SizedBox(height: 16),
-
-              // マッチング中 ＋ アニメーションドット
-              AnimatedMatchingText(
-                dotCount: _dotCount,
-                isAIMode: widget.forceAIMatch,
-              ),
-
-              const SizedBox(height: 48),
-
-              // キャンセルボタン
-              ElevatedButton(
-                onPressed: _cancelMatching,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFC2CEF7),
-                  foregroundColor: Colors.black,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
-                  elevation: 4,
-                ),
-                child: const Text(
-                  'キャンセル',
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontFamily: 'Catamaran',
-                    fontWeight: FontWeight.w800,
+            ),
+            // メインコンテンツ
+            SafeArea(
+              child: Center(
+                child: SizedBox(
+                  width: contentWidth,
+                  height: contentHeight,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 40), // 上部のスペース（固定40px）
+                      _buildTitle(),
+                      SizedBox(height: contentHeight * 0.08), // タイトルとレートの間（8%）
+                      Column(
+                        children: [
+                          RateCounter(targetRate: _userRating),
+                          if (_userRating == 0)
+                            Text(
+                              '読み込み中...',
+                              style: GoogleFonts.catamaran(
+                                fontSize: 12,
+                                color: Colors.white.withOpacity(0.6),
+                              ),
+                            ),
+                        ],
+                      ),
+                      SizedBox(
+                          height: contentHeight * 0.15), // レートとオンラインユーザーの間（15%）
+                      _buildOnlineUsers(),
+                      SizedBox(
+                          height: contentHeight * 0.04), // オンラインユーザーとマッチング中の間（4%）
+                      _buildMatchingText(),
+                      SizedBox(
+                          height: contentHeight * 0.06), // マッチング中とキャンセルボタンの間（6%）
+                      _buildCancelButton(),
+                    ],
                   ),
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
-}
 
-class AnimatedMatchingText extends StatelessWidget {
-  final int dotCount;
-  final bool isAIMode;
-  
-  const AnimatedMatchingText({
-    required this.dotCount,
-    this.isAIMode = false,
-    super.key,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    // ドットの数は 0～3 まで。0 のときは非表示、1→1つ、2→2つ、3→3つのドットを表示
-    // 事前に枠を確保するため、最大3つ分のスペースを常に使います。
-    const dotStyle = TextStyle(
-      color: Colors.black,
-      fontSize: 32,
-      fontFamily: 'Catamaran',
-      fontWeight: FontWeight.w800,
+  Widget _buildTitle() {
+    return Text(
+      'Talk One',
+      style: GoogleFonts.caveat(
+        fontSize: 60,
+        color: const Color(0xFF4E3B7A),
+        fontWeight: FontWeight.bold,
+      ),
     );
-    
+  }
+
+  Widget _buildOnlineUsers() {
+    return Text(
+      'オンラインのユーザー ：$_onlineUsers人',
+      style: GoogleFonts.catamaran(
+        fontSize: 15,
+        fontWeight: FontWeight.w800,
+        color: Colors.white,
+      ),
+    );
+  }
+
+  Widget _buildMatchingText() {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
-          isAIMode ? 'AI準備中' : 'マッチング中',
-          textAlign: TextAlign.center,
-          style: const TextStyle(
-            color: Colors.black,
+          'マッチング中',
+          style: GoogleFonts.catamaran(
             fontSize: 32,
-            fontFamily: 'Catamaran',
             fontWeight: FontWeight.w800,
+            color: Colors.white,
           ),
         ),
-        const SizedBox(width: 4),
-        // ドット3つ分のスペースを用意し、dotCountに応じて色だけ切り替える
+        const SizedBox(width: 8),
         for (var i = 0; i < 3; i++) ...[
           Text(
-            '．',
-            style: dotStyle.copyWith(
-              color: (i < dotCount) ? Colors.black : Colors.transparent,
+            '.',
+            style: GoogleFonts.catamaran(
+              fontSize: 32,
+              fontWeight: FontWeight.w800,
+              color: (i < _dotCount) ? Colors.white : Colors.transparent,
             ),
           ),
         ],
       ],
+    );
+  }
+
+  Widget _buildCancelButton() {
+    return ElevatedButton(
+      onPressed: _cancelMatching,
+      style: ElevatedButton.styleFrom(
+        backgroundColor: const Color(0xFFC2CEF7),
+        foregroundColor: Colors.black,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 16),
+      ),
+      child: Text(
+        'キャンセル',
+        style: GoogleFonts.catamaran(
+          fontSize: 20,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
     );
   }
 }

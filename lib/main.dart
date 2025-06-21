@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
-import 'screens/network_check_screen.dart';
+import 'screens/home_screen.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 
 Future<void> main() async {
@@ -11,6 +12,12 @@ Future<void> main() async {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
+    
+    // 匿名認証を自動で実行
+    if (FirebaseAuth.instance.currentUser == null) {
+      await FirebaseAuth.instance.signInAnonymously();
+    }
+    
     runApp(const MyApp());
   } catch (e) {
     print('Firebase初期化エラー: $e');
@@ -26,11 +33,12 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'TalkOne',
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepOrange),
       ),
-      home: const NetworkCheckScreen(),
+      home: const HomeScreen(),
     );
   }
 }

@@ -9,7 +9,7 @@
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
-	<string>com.talkone.app</string>
+	<string>com.truemato</string>
 	<key>PROJECT_ID</key>
 	<string>myproject-c8034</string>
 	<key>STORAGE_BUCKET</key>
@@ -25,6 +25,6 @@
 	<key>IS_SIGNIN_ENABLED</key>
 	<true></true>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:198779252752:ios:462ac9d389b1f545be5a95</string>
+	<string>1:198779252752:ios:a8a2e1c99afea36fbe5a95</string>
 </dict>
 </plist>

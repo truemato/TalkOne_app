@@ -1,261 +1,248 @@
 import 'package:flutter/material.dart';
-import '../services/evaluation_service.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:lottie/lottie.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'dart:io' show Platform;
+import '../services/user_profile_service.dart';
 import 'matching_screen.dart';
 import 'home_screen.dart';
 
 class RematchOrHomeScreen extends StatefulWidget {
-  final double userRating;
-  final bool isDummyMatch;
-
-  const RematchOrHomeScreen({
-    super.key,
-    required this.userRating,
-    this.isDummyMatch = false,
-  });
+  const RematchOrHomeScreen({super.key});
 
   @override
   State<RematchOrHomeScreen> createState() => _RematchOrHomeScreenState();
 }
 
-class _RematchOrHomeScreenState extends State<RematchOrHomeScreen> {
-  final EvaluationService _evaluationService = EvaluationService();
-  bool _shouldRecommendAI = false;
+class _RematchOrHomeScreenState extends State<RematchOrHomeScreen>
+    with TickerProviderStateMixin {
+  late AnimationController _pulseController;
+  late Animation<double> _pulseAnimation;
+
+  final UserProfileService _userProfileService = UserProfileService();
+  String? _selectedIconPath = 'aseets/icons/Woman 1.svg';
 
   @override
   void initState() {
     super.initState();
-    _checkAIRecommendation();
+    _loadUserProfile();
+    _pulseController = AnimationController(
+      duration: const Duration(seconds: 2),
+      vsync: this,
+    )..repeat(reverse: true);
+
+    _pulseAnimation = Tween<double>(
+      begin: 1.0,
+      end: 1.05,
+    ).animate(CurvedAnimation(
+      parent: _pulseController,
+      curve: Curves.easeInOut,
+    ));
   }
 
-  Future<void> _checkAIRecommendation() async {
-    final shouldRecommendAI = await _evaluationService.shouldMatchWithAI(widget.userRating);
-    setState(() {
-      _shouldRecommendAI = shouldRecommendAI;
-    });
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadUserProfile() async {
+    final profile = await _userProfileService.getUserProfile();
+    if (profile != null && mounted) {
+      setState(() {
+        _selectedIconPath = profile.iconPath ?? 'aseets/icons/Woman 1.svg';
+      });
+    }
+  }
+
+  void _goToMatching() {
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const MatchingScreen(),
+      ),
+      (route) => route.isFirst, // ホーム画面まで戻る
+    );
+  }
+
+  void _goToHome() {
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const HomeScreen(),
+      ),
+      (route) => false, // 全ての履歴をクリア
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    // 画面サイズを取得
-    final screenSize = MediaQuery.of(context).size;
-    final sw = screenSize.width;
-    final sh = screenSize.height;
-
-    // 元デザインのベースサイズ
-    const baseWidth = 393.0;
-    const baseHeight = 852.0;
-
-    // ボタン幅は「165px / 393px」の比率で算出
-    final buttonWidth = sw * (165.0 / baseWidth);
-
-    // 「もう一度マッチング」ボタンの高さは 103px / 852px
-    final rematchButtonHeight = sh * (103.0 / baseHeight);
-    // 「ホームに戻る」ボタンの高さは 78px / 852px
-    final homeButtonHeight = sh * (78.0 / baseHeight);
-
-    // 縦位置の比率
-    // 「もう一度マッチング」ボタンの top は 232px / 852px
-    final rematchButtonTop = sh * (232.0 / baseHeight);
-    // 「ホームに戻る」ボタンの top は 426px / 852px
-    final homeButtonTop = sh * (426.0 / baseHeight);
-
     return Scaffold(
-      backgroundColor: const Color(0xFFE2E0F9),
+      backgroundColor: const Color(0xFF5A64ED),
       body: SafeArea(
-        child: SizedBox(
-          width: double.infinity,
-          height: double.infinity,
-          child: Stack(
-            children: [
-              // ──────────────────────────────
-              //  0) レーティング表示とAI推奨メッセージ
-              // ──────────────────────────────
-              Positioned(
-                top: sh * 0.1,
-                left: 0,
-                right: 0,
-                child: Column(
-                  children: [
-                    Text(
-                      'あなたのレート: ${widget.userRating.toInt()}',
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF1E1E1E),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    if (_shouldRecommendAI && !widget.isDummyMatch)
-                      Container(
-                        margin: const EdgeInsets.symmetric(horizontal: 24),
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.orange[100],
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.orange),
-                        ),
-                        child: const Column(
-                          children: [
-                            Icon(
-                              Icons.lightbulb,
-                              color: Colors.orange,
-                              size: 32,
-                            ),
-                            SizedBox(height: 8),
-                            Text(
-                              'AI練習モードがおすすめです！\n会話スキルを向上させましょう',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: 16,
-                                color: Colors.black87,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                  ],
-                ),
-              ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.start,
+          children: [
+            const SizedBox(height: 48),
+            _buildContent(),
+            const SizedBox(height: 32),
+            _buildButtons(),
+          ],
+        ),
+      ),
+    );
+  }
 
-              // ──────────────────────────────
-              //  1) 「もう一度マッチング」ボタン
-              // ──────────────────────────────
-              Positioned(
-                top: rematchButtonTop,
-                left: (sw - buttonWidth) / 2, // 横中央に配置
-                child: SizedBox(
-                  width: buttonWidth,
-                  height: rematchButtonHeight,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const MatchingScreen(),
-                        ),
-                      );
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFC2CEF7),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      elevation: 0,
-                    ),
-                    child: const Text(
-                      'もう一度\nマッチング',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Colors.black,
-                        fontSize: 24,
-                        fontFamily: 'Catamaran',
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
+  Widget _buildContent() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          _buildAvatar(),
+          const SizedBox(height: 40),
+          _buildTitle(),
+          const SizedBox(height: 20),
+          _buildSubtitle(),
+        ],
+      ),
+    );
+  }
 
-              // ──────────────────────────────
-              //  1.5) AI練習ボタン（推奨時のみ表示）
-              // ──────────────────────────────
-              if (_shouldRecommendAI)
-                Positioned(
-                  top: rematchButtonTop + rematchButtonHeight + 20,
-                  left: (sw - buttonWidth) / 2,
-                  child: SizedBox(
-                    width: buttonWidth,
-                    height: rematchButtonHeight * 0.8,
-                    child: ElevatedButton(
-                      onPressed: () {
-                        Navigator.pushReplacement(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const MatchingScreen(forceAIMatch: true),
-                          ),
-                        );
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.orange[200],
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        elevation: 0,
-                      ),
-                      child: const Text(
-                        'AI練習\nモード',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: Colors.black,
-                          fontSize: 20,
-                          fontFamily: 'Catamaran',
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-
-              // ──────────────────────────────
-              //  2) 「ホームに戻る」ボタン
-              // ──────────────────────────────
-              Positioned(
-                top: homeButtonTop + (_shouldRecommendAI ? 80 : 0),
-                left: (sw - buttonWidth) / 2,
-                child: SizedBox(
-                  width: buttonWidth,
-                  height: homeButtonHeight,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      Navigator.pushAndRemoveUntil(
-                        context,
-                        MaterialPageRoute(builder: (context) => HomeScreen()),
-                        (route) => false,
-                      );
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFC2CEF7),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      elevation: 0,
-                    ),
-                    child: const Text(
-                      'ホームに戻る',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Colors.black,
-                        fontSize: 24,
-                        fontFamily: 'Catamaran',
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-
-              // ──────────────────────────────
-              //  3) 下部ロゴ
-              // ──────────────────────────────
-              Positioned(
-                bottom: sh * 0.04,
-                left: 0,
-                right: 0,
-                child: const Text(
-                  'TalkOne',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: Color(0xFF1E1E1E),
-                    fontSize: 64,
-                    fontFamily: 'Catamaran',
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -4.48,
-                  ),
-                ),
+  Widget _buildAvatar() {
+    return AnimatedBuilder(
+      animation: _pulseAnimation,
+      builder: (context, child) => Transform.scale(
+        scale: _pulseAnimation.value,
+        child: Container(
+          width: 120,
+          height: 120,
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.9),
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 15,
+                offset: const Offset(0, 5),
               ),
             ],
           ),
+          child: ClipOval(
+            child: SvgPicture.asset(
+              _selectedIconPath!,
+              fit: BoxFit.cover,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTitle() {
+    return Text(
+      '通話が終了しました',
+      style: GoogleFonts.catamaran(
+        fontSize: 28,
+        fontWeight: FontWeight.bold,
+        color: Colors.white,
+      ),
+      textAlign: TextAlign.center,
+    );
+  }
+
+  Widget _buildSubtitle() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.9),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        'お疲れさまでした！\n次は何をしますか？',
+        style: GoogleFonts.catamaran(
+          fontSize: 16,
+          fontWeight: FontWeight.w500,
+          color: const Color(0xFF4E3B7A),
+        ),
+        textAlign: TextAlign.center,
+      ),
+    );
+  }
+
+  Widget _buildButtons() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      child: Column(
+        children: [
+          _buildRematchButton(),
+          const SizedBox(height: 16),
+          _buildHomeButton(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRematchButton() {
+    return SizedBox(
+      width: double.infinity,
+      height: 60,
+      child: ElevatedButton(
+        onPressed: _goToMatching,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color(0xFF4E3B7A),
+          foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(30),
+          ),
+          elevation: 4,
+          shadowColor: Colors.black.withOpacity(0.2),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.refresh, size: 24),
+            const SizedBox(width: 12),
+            Text(
+              'もう一度マッチング',
+              style: GoogleFonts.catamaran(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHomeButton() {
+    return SizedBox(
+      width: double.infinity,
+      height: 60,
+      child: ElevatedButton(
+        onPressed: _goToHome,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.white.withOpacity(0.9),
+          foregroundColor: const Color(0xFF4E3B7A),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(30),
+          ),
+          elevation: 2,
+          shadowColor: Colors.black.withOpacity(0.1),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.home, size: 24),
+            const SizedBox(width: 12),
+            Text(
+              'ホームに戻る',
+              style: GoogleFonts.catamaran(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
         ),
       ),
     );
