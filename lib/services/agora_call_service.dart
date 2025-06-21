@@ -78,18 +78,32 @@ class AgoraCallService {
     if (_isInitialized) return true;
     
     try {
+      print('Agora: 初期化開始 - App ID: ${AgoraConfig.appId}');
+      
       // マイクの権限を確認
       await _requestPermissions();
+      
+      // 既存のエンジンがあれば解放
+      if (_engine != null) {
+        await _engine!.release();
+        _engine = null;
+      }
       
       // Agora Engineを作成
       print('Agora: エンジン作成開始...');
       _engine = createAgoraRtcEngine();
       
-      print('Agora: エンジン初期化開始 - App ID: ${AgoraConfig.appId}');
+      if (_engine == null) {
+        throw Exception('Agora RTC Engineの作成に失敗しました');
+      }
+      
+      // エンジン初期化（iOS用の安全な設定）
+      print('Agora: エンジン初期化開始...');
       await _engine!.initialize(RtcEngineContext(
         appId: AgoraConfig.appId,
         channelProfile: ChannelProfileType.channelProfileCommunication,
-        audioScenario: AudioScenarioType.audioScenarioDefault,
+        audioScenario: AudioScenarioType.audioScenarioGameStreaming, // iOS用に変更
+        areaCode: AreaCode.areaCodeGlob,
       ));
       
       // 高品質音声設定
@@ -204,7 +218,18 @@ class AgoraCallService {
       
       // 基本的な音声設定
       await _engine!.enableAudio();
+      
+      // iOS用のオーディオセッション設定
+      await _engine!.setAudioSessionOperationRestriction(
+        AudioSessionOperationRestriction.audioSessionOperationRestrictionNone,
+      );
+      
+      // スピーカーフォンを有効化
       await _engine!.setDefaultAudioRouteToSpeakerphone(true);
+      
+      // iOS用の追加設定
+      await _engine!.setChannelProfile(ChannelProfileType.channelProfileCommunication);
+      await _engine!.setClientRole(role: ClientRoleType.clientRoleBroadcaster);
       
       // 音声レベル監視を有効化
       await _engine!.enableAudioVolumeIndication(
@@ -213,47 +238,95 @@ class AgoraCallService {
         reportVad: true,
       );
       
-      print('Agora: 音声設定完了');
+      print('Agora: 音声設定完了（iOS最適化適用）');
       
       _isInitialized = true;
+      print('Agora: 初期化完了');
       return true;
     } catch (e) {
       print('Agora初期化エラー: $e');
-      onError?.call('音声通話の初期化に失敗しました');
+      print('エラーの詳細: ${e.toString()}');
+      
+      // エンジンの解放
+      if (_engine != null) {
+        try {
+          await _engine!.release();
+        } catch (releaseError) {
+          print('Agora: エンジン解放エラー - $releaseError');
+        }
+        _engine = null;
+      }
+      
+      _isInitialized = false;
+      
+      // より詳細なエラーメッセージ
+      String errorMessage = '音声通話の初期化に失敗しました';
+      if (e.toString().contains('permission')) {
+        errorMessage = 'マイクの権限が許可されていません。設定から許可してください。';
+      } else if (e.toString().contains('network')) {
+        errorMessage = 'ネットワーク接続を確認してください。';
+      } else if (e.toString().contains('Invalid')) {
+        errorMessage = '設定エラーです。アプリを再起動してください。';
+      }
+      
+      onError?.call(errorMessage);
       return false;
     }
   }
   
   // 権限を要求
   Future<void> _requestPermissions() async {
-    // iOS では段階的に権限を要求
-    print('Agora: 権限確認開始');
-    
-    // まずマイク権限の現在の状態を確認
-    final micCurrent = await Permission.microphone.status;
-    print('Agora: 現在のマイク権限状態: $micCurrent');
-    
-    if (micCurrent != PermissionStatus.granted) {
-      final micStatus = await Permission.microphone.request();
-      print('Agora: マイク権限要求結果: $micStatus');
+    try {
+      print('Agora: 権限確認開始');
       
-      if (micStatus != PermissionStatus.granted) {
-        throw Exception('マイクのアクセス許可が必要です。設定から許可してください。');
-      }
-    }
-    
-    // ビデオが有効な場合のみカメラ権限を要求
-    if (_isVideoEnabled) {
-      final camCurrent = await Permission.camera.status;
-      print('Agora: 現在のカメラ権限状態: $camCurrent');
+      // まずマイク権限の現在の状態を確認
+      final micCurrent = await Permission.microphone.status;
+      print('Agora: 現在のマイク権限状態: $micCurrent');
       
-      if (camCurrent != PermissionStatus.granted) {
-        final camStatus = await Permission.camera.request();
-        print('Agora: カメラ権限要求結果: $camStatus');
+      if (micCurrent == PermissionStatus.denied) {
+        print('Agora: マイク権限を要求中...');
+        final micStatus = await Permission.microphone.request();
+        print('Agora: マイク権限要求結果: $micStatus');
+        
+        if (micStatus != PermissionStatus.granted) {
+          throw Exception('マイクのアクセス許可が必要です。設定アプリからTalkOneにマイクの使用を許可してください。');
+        }
+      } else if (micCurrent == PermissionStatus.permanentlyDenied) {
+        throw Exception('マイクの権限が永続的に拒否されています。設定アプリから手動で許可してください。');
+      } else if (micCurrent != PermissionStatus.granted) {
+        // 再度権限要求
+        final micStatus = await Permission.microphone.request();
+        if (micStatus != PermissionStatus.granted) {
+          throw Exception('マイクのアクセス許可が必要です。');
+        }
       }
+      
+      // Speech権限も確認（iOS音声認識で必要な場合）
+      final speechStatus = await Permission.speech.status;
+      if (speechStatus == PermissionStatus.denied) {
+        await Permission.speech.request();
+      }
+      
+      // ビデオが有効な場合のみカメラ権限を要求
+      if (_isVideoEnabled) {
+        final camCurrent = await Permission.camera.status;
+        print('Agora: 現在のカメラ権限状態: $camCurrent');
+        
+        if (camCurrent == PermissionStatus.denied) {
+          final camStatus = await Permission.camera.request();
+          print('Agora: カメラ権限要求結果: $camStatus');
+        }
+      }
+      
+      print('Agora: 権限確認完了');
+      
+      // 少し待機してから次のステップに進む（iOS用）
+      await Future.delayed(const Duration(milliseconds: 500));
+      
+    } catch (e) {
+      print('Agora: 権限要求エラー - $e');
+      rethrow;
     }
-    
-    print('Agora: 権限確認完了');
   }
   
   // チャンネルに参加
