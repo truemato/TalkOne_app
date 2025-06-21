@@ -33,7 +33,7 @@ class _RateCounterState extends State<RateCounter>
     );
 
     _rateAnimation = IntTween(
-      begin: 0,
+      begin: widget.targetRate > 100 ? widget.targetRate - 100 : 0,
       end: widget.targetRate,
     ).animate(CurvedAnimation(
       parent: _rateController,
@@ -50,7 +50,7 @@ class _RateCounterState extends State<RateCounter>
       // targetRateが変更された場合、アニメーションを再実行
       _rateController.reset();
       _rateAnimation = IntTween(
-        begin: 0,
+        begin: widget.targetRate > 100 ? widget.targetRate - 100 : 0,
         end: widget.targetRate,
       ).animate(CurvedAnimation(
         parent: _rateController,
@@ -88,7 +88,7 @@ class _RateCounterState extends State<RateCounter>
             builder: (context, child) => Text(
               '${_rateAnimation.value}',
               style: GoogleFonts.notoSans(
-                fontSize: 48,
+                fontSize: 46,
                 fontWeight: FontWeight.w700,
                 color: const Color(0xFF1E1E1E),
               ),
@@ -101,16 +101,17 @@ class _RateCounterState extends State<RateCounter>
 }
 
 class MatchingScreen extends StatefulWidget {
-  final bool forceAIMatch;
+  // AI機能無効化のためコメントアウト
+  // final bool forceAIMatch;
   final bool isVideoCall;
-  final bool enableAIFilter;
+  // final bool enableAIFilter;
   final bool privacyMode;
   
   const MatchingScreen({
     super.key,
-    this.forceAIMatch = false,
+    // this.forceAIMatch = false,
     this.isVideoCall = false,
-    this.enableAIFilter = false,
+    // this.enableAIFilter = false,
     this.privacyMode = false,
   });
 
@@ -134,7 +135,7 @@ class _MatchingScreenState extends State<MatchingScreen> {
   
   late Timer _timer;
   int _dotCount = 0;
-  int _userRating = 0; // 0を初期値として読み込み中を表示
+  int _userRating = 1000; // デフォルトレーティング値
   int _onlineUsers = 0;
   String? _callRequestId;
   StreamSubscription? _matchingSubscription;
@@ -200,20 +201,20 @@ class _MatchingScreenState extends State<MatchingScreen> {
           // UserProfileにも同期保存
           await _userProfileService.updateRating(rating);
         } else if (mounted) {
-          // 新規ユーザーの場合、初期レーティング100を設定
+          // 新規ユーザーの場合、初期レーティング1000を設定
           setState(() {
-            _userRating = 100;
+            _userRating = 1000; // デフォルトレーティング
             _selectedThemeIndex = 0; // デフォルトテーマ
-            print('MatchingScreen: 新規ユーザー、初期レーティング100を設定');
+            print('MatchingScreen: 新規ユーザー、初期レーティング1000を設定');
           });
-          await _userProfileService.updateRating(100);
+          await _userProfileService.updateRating(1000);
         }
       }
     } catch (e) {
       print('MatchingScreen: レーティング読み込みエラー - $e');
       if (mounted) {
         setState(() {
-          _userRating = 100; // エラー時のフォールバック
+          _userRating = 1000; // エラー時のフォールバック
           _selectedThemeIndex = 0; // デフォルトテーマ
         });
       }
@@ -264,9 +265,9 @@ class _MatchingScreenState extends State<MatchingScreen> {
 
   Future<void> _startMatching() async {
     try {
-      // 通話リクエストを作成
+      // 通話リクエストを作成（AI機能無効化のためforceAIMatchパラメータをコメントアウト）
       _callRequestId = await _matchingService.createCallRequest(
-        forceAIMatch: widget.forceAIMatch,
+        // forceAIMatch: widget.forceAIMatch,
       );
       
       // マッチング監視開始

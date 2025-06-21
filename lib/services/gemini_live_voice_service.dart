@@ -1,3 +1,5 @@
+// AI機能無効化のためGemini Live音声サービス全体をコメントアウト
+/*
 // lib/services/gemini_live_voice_service.dart
 import 'dart:async';
 import 'dart:convert';
@@ -238,3 +240,4 @@ class GeminiLiveVoiceService {
   bool get isConnected => _isConnected;
   int? get currentPersonalityId => _currentPersonalityId;
 }
+*/

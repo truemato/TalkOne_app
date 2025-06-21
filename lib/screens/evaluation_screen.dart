@@ -133,7 +133,7 @@ class _EvaluationScreenState extends State<EvaluationScreen>
         isDummyMatch: widget.isDummyMatch,
       );
 
-      // レーティングシステムに反映（通話のみバージョン）
+      // 相手のレーティングを更新（自分の値を参照しない、streakCountベース）
       await _ratingService.updateRating(rating, widget.partnerId);
       
       // AI通話関連ロジック（現在未使用）

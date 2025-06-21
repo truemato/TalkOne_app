@@ -8,6 +8,7 @@ import 'history_screen.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'dart:io' show Platform;
 import '../services/user_profile_service.dart';
+import '../utils/permission_util.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -616,6 +617,7 @@ class _HomeScreenState extends State<HomeScreen>
       },
     );
   }
+
 }
 
 // 設定画面本体

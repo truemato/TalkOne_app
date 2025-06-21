@@ -80,8 +80,8 @@ class AgoraCallService {
     try {
       print('Agora: 初期化開始 - App ID: ${AgoraConfig.appId}');
       
-      // マイクの権限を確認
-      await _requestPermissions();
+      // 権限確認（ホーム画面で実行済みのため、状態のみ確認）
+      await _checkPermissions();
       
       // 既存のエンジンがあれば解放
       if (_engine != null) {
@@ -291,56 +291,32 @@ class AgoraCallService {
   }
   
   // 権限を要求
-  Future<void> _requestPermissions() async {
+  Future<void> _checkPermissions() async {
     try {
-      print('Agora: 権限確認開始');
+      print('Agora: 権限状態確認開始');
       
-      // まずマイク権限の現在の状態を確認
-      final micCurrent = await Permission.microphone.status;
-      print('Agora: 現在のマイク権限状態: $micCurrent');
+      // マイク権限の現在の状態を確認（要求はしない）
+      final micStatus = await Permission.microphone.status;
+      print('Agora: マイク権限状態: $micStatus');
       
-      if (micCurrent == PermissionStatus.denied) {
-        print('Agora: マイク権限を要求中...');
-        final micStatus = await Permission.microphone.request();
-        print('Agora: マイク権限要求結果: $micStatus');
-        
-        if (micStatus != PermissionStatus.granted) {
-          throw Exception('マイクのアクセス許可が必要です。設定アプリからTalkOneにマイクの使用を許可してください。');
-        }
-      } else if (micCurrent == PermissionStatus.permanentlyDenied) {
-        throw Exception('マイクの権限が永続的に拒否されています。設定アプリから手動で許可してください。');
-      } else if (micCurrent != PermissionStatus.granted) {
-        // 再度権限要求
-        final micStatus = await Permission.microphone.request();
-        if (micStatus != PermissionStatus.granted) {
-          throw Exception('マイクのアクセス許可が必要です。');
-        }
+      if (micStatus != PermissionStatus.granted) {
+        throw Exception('マイクの権限が許可されていません。ホーム画面から権限を許可してください。');
       }
       
-      // Speech権限も確認（iOS音声認識で必要な場合）
-      final speechStatus = await Permission.speech.status;
-      if (speechStatus == PermissionStatus.denied) {
-        await Permission.speech.request();
-      }
-      
-      // ビデオが有効な場合のみカメラ権限を要求
+      // ビデオが有効な場合のみカメラ権限をチェック
       if (_isVideoEnabled) {
-        final camCurrent = await Permission.camera.status;
-        print('Agora: 現在のカメラ権限状態: $camCurrent');
+        final cameraStatus = await Permission.camera.status;
+        print('Agora: カメラ権限状態: $cameraStatus');
         
-        if (camCurrent == PermissionStatus.denied) {
-          final camStatus = await Permission.camera.request();
-          print('Agora: カメラ権限要求結果: $camStatus');
+        if (cameraStatus != PermissionStatus.granted) {
+          throw Exception('カメラの権限が許可されていません。設定から権限を許可してください。');
         }
       }
       
       print('Agora: 権限確認完了');
       
-      // 少し待機してから次のステップに進む（iOS用）
-      await Future.delayed(const Duration(milliseconds: 500));
-      
     } catch (e) {
-      print('Agora: 権限要求エラー - $e');
+      print('Agora: 権限確認エラー - $e');
       rethrow;
     }
   }
@@ -451,6 +427,8 @@ class AgoraCallService {
       _currentUid = null;
       
       print('Agora: チャンネルから離脱');
+    } catch (e) {
+      print('Agora: チャンネル離脱エラー - $e');
     }
   }
   

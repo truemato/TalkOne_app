@@ -1,3 +1,5 @@
+// AI機能無効化のため拡張音声チャットサービス全体をコメントアウト
+/*
 // lib/services/enhanced_voice_chat_service.dart
 import 'dart:async';
 import 'package:speech_to_text/speech_to_text.dart';
@@ -392,3 +394,4 @@ class EnhancedVoiceChatService {
     print('拡張AI音声会話: リソース解放完了');
   }
 }
+*/

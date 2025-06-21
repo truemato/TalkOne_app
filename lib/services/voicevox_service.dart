@@ -1,3 +1,5 @@
+// AI機能無効化のためVOICEVOXサービス全体をコメントアウト
+/*
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:http/http.dart' as http;
@@ -280,3 +282,4 @@ class VoiceConfig {
     this.volume = 1.0,
   });
 }
+*/

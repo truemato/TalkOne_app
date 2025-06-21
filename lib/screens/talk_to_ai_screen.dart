@@ -1,3 +1,5 @@
+// AI機能無効化のためTalk to AI画面全体をコメントアウト
+/*
 // lib/screens/talk_to_ai_screen.dart
 
 import 'package:flutter/material.dart';
@@ -473,3 +475,4 @@ class ChatMessage {
     required this.timestamp,
   });
 }
+*/

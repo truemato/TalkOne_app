@@ -9,6 +9,7 @@ class UserProfile {
   final String? iconPath;
   final int themeIndex;
   final int rating;
+  final int streakCount; // -10から+5までのストリークカウント
 
   UserProfile({
     this.nickname,
@@ -18,6 +19,7 @@ class UserProfile {
     this.iconPath,
     this.themeIndex = 0,
     this.rating = 1000,
+    this.streakCount = 0,
   });
 
   Map<String, dynamic> toMap() {
@@ -29,6 +31,7 @@ class UserProfile {
       'iconPath': iconPath,
       'themeIndex': themeIndex,
       'rating': rating,
+      'streakCount': streakCount,
       'updatedAt': FieldValue.serverTimestamp(),
     };
   }
@@ -44,6 +47,7 @@ class UserProfile {
       iconPath: map['iconPath'],
       themeIndex: map['themeIndex'] ?? 0,
       rating: map['rating'] ?? 1000,
+      streakCount: map['streakCount'] ?? 0,
     );
   }
 
@@ -55,6 +59,7 @@ class UserProfile {
     String? iconPath,
     int? themeIndex,
     int? rating,
+    int? streakCount,
   }) {
     return UserProfile(
       nickname: nickname ?? this.nickname,
@@ -64,6 +69,7 @@ class UserProfile {
       iconPath: iconPath ?? this.iconPath,
       themeIndex: themeIndex ?? this.themeIndex,
       rating: rating ?? this.rating,
+      streakCount: streakCount ?? this.streakCount,
     );
   }
 }
@@ -73,6 +79,9 @@ class UserProfileService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   
   String? get _userId => _auth.currentUser?.uid;
+  
+  // デバッグ用: 現在のユーザーIDを取得
+  String? get currentUserId => _userId;
   
   // プロフィールを取得
   Future<UserProfile?> getUserProfile() async {
@@ -299,6 +308,51 @@ class UserProfileService {
       return true;
     } catch (e) {
       print('レーティング更新エラー: $e');
+      return false;
+    }
+  }
+  
+  // ストリークカウントを更新するメソッド（旧システム、互換性のため保持）
+  Future<bool> updateStreakCount(String userId, int receivedStars) async {
+    try {
+      // 現在のストリークカウントを取得
+      final profile = await getUserProfileById(userId);
+      int currentStreak = profile?.streakCount ?? 0;
+      
+      // ストリークカウントを更新（星3以上で+1、星2以下で-1）
+      int newStreak;
+      if (receivedStars >= 3) {
+        newStreak = (currentStreak + 1).clamp(-10, 5);
+      } else {
+        newStreak = (currentStreak - 1).clamp(-10, 5);
+      }
+      
+      // Firebaseに更新
+      await _db.collection('userProfiles').doc(userId).set({
+        'streakCount': newStreak,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+      
+      print('ストリークカウント更新成功: $userId -> $currentStreak to $newStreak (星$receivedStars)');
+      return true;
+    } catch (e) {
+      print('ストリークカウント更新エラー: $e');
+      return false;
+    }
+  }
+  
+  // ストリークカウントを直接設定するメソッド（新システム用）
+  Future<bool> updateStreakCountDirect(String userId, int newStreakCount) async {
+    try {
+      await _db.collection('userProfiles').doc(userId).set({
+        'streakCount': newStreakCount,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+      
+      print('ストリークカウント直接更新成功: $userId -> $newStreakCount');
+      return true;
+    } catch (e) {
+      print('ストリークカウント直接更新エラー: $e');
       return false;
     }
   }

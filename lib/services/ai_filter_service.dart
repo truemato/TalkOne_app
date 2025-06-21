@@ -1,3 +1,5 @@
+// AI機能無効化のためAIフィルターサービス全体をコメントアウト
+/*
 import 'package:flutter/services.dart';
 import 'dart:io' show Platform;
 
@@ -97,3 +99,4 @@ class AIFilterService {
   /// Force enable for privacy mode (always hide face)
   bool get isPrivacyRequired => false; // Only for privacy mode calls
 }
+*/

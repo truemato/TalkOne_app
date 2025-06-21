@@ -1,3 +1,5 @@
+// AI機能無効化のため人格システム全体をコメントアウト
+/*
 // lib/services/personality_system.dart
 import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -277,3 +279,4 @@ class PersonalitySystem {
     }
   }
 }
+*/
