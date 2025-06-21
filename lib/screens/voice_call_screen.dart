@@ -181,6 +181,14 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
           setState(() {
             _partnerJoined = false;
           });
+          
+          // 相手が離脱したら自動で通話を終了
+          print('VoiceCall: 相手の離脱により通話を自動終了します');
+          Future.delayed(const Duration(milliseconds: 500), () {
+            if (mounted && !_callEnded) {
+              _endCall();
+            }
+          });
         }
       };
 
@@ -191,6 +199,20 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
             _connectionState = state;
             _isConnected = state == AgoraConnectionState.connected;
           });
+          
+          // 接続が失敗または切断された場合の処理
+          if (state == AgoraConnectionState.failed) {
+            print('VoiceCall: 接続に失敗しました');
+          } else if (state == AgoraConnectionState.disconnected && _partnerJoined) {
+            print('VoiceCall: 予期しない切断が発生しました');
+            // 相手がいた状態での切断の場合、少し待ってから通話終了
+            Future.delayed(const Duration(seconds: 3), () {
+              if (mounted && !_callEnded && !_partnerJoined) {
+                print('VoiceCall: 相手との接続が回復しないため通話を終了します');
+                _endCall();
+              }
+            });
+          }
         }
       };
       
@@ -311,15 +333,24 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
   }
 
   void _endCall() {
-    if (_callEnded) return;
+    if (_callEnded) {
+      print('VoiceCall: 通話終了処理は既に実行済みです');
+      return;
+    }
+    
+    print('VoiceCall: 通話終了処理を開始します');
     _callEnded = true;
     
+    // タイマーを停止
     _timer?.cancel();
+    print('VoiceCall: タイマー停止完了');
     
-    // Agoraから離脱
+    // Agoraから離脱（相手に離脱通知を送信）
+    print('VoiceCall: Agoraチャンネルから離脱中...');
     _agoraService.leaveChannel();
     
     // 通話履歴を保存
+    print('VoiceCall: 通話履歴を保存中...');
     _saveCallHistory();
     
     // 直接評価画面に遷移

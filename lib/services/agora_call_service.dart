@@ -103,7 +103,7 @@ class AgoraCallService {
         appId: AgoraConfig.appId,
         channelProfile: ChannelProfileType.channelProfileCommunication,
         audioScenario: AudioScenarioType.audioScenarioGameStreaming, // iOS用に変更
-        areaCode: AreaCode.areaCodeGlob,
+        areaCode: 0xFFFFFFFF, // Global area code
       ));
       
       // 高品質音声設定
@@ -154,6 +154,22 @@ class AgoraCallService {
         },
         onUserOffline: (RtcConnection connection, int uid, UserOfflineReasonType reason) {
           print('Agora: ユーザー離脱 - $uid (理由: $reason)');
+          
+          // 離脱理由に関係なく通知（ネットワーク切断、アプリ終了、手動切断など）
+          String reasonText = '';
+          switch (reason) {
+            case UserOfflineReasonType.userOfflineQuit:
+              reasonText = '手動で通話を終了';
+              break;
+            case UserOfflineReasonType.userOfflineDropped:
+              reasonText = 'ネットワーク切断';
+              break;
+            case UserOfflineReasonType.userOfflineBecomeAudience:
+              reasonText = '視聴者モードに変更';
+              break;
+          }
+          print('Agora: 離脱理由詳細 - $reasonText');
+          
           onUserLeft?.call(uid.toString());
         },
         onConnectionStateChanged: (RtcConnection connection, ConnectionStateType state, ConnectionChangedReasonType reason) {
@@ -403,13 +419,22 @@ class AgoraCallService {
   
   // チャンネルから離脱
   Future<void> leaveChannel() async {
-    if (_engine != null) {
-      // トークン更新タイマーを停止
-      _tokenRefreshTimer?.cancel();
-      _tokenRefreshTimer = null;
+    try {
+      print('Agora: チャンネル離脱開始 - ${_currentChannelName ?? "不明"}');
       
-      await _engine!.leaveChannel();
-      _setConnectionState(AgoraConnectionState.disconnected);
+      if (_engine != null) {
+        // トークン更新タイマーを停止
+        _tokenRefreshTimer?.cancel();
+        _tokenRefreshTimer = null;
+        
+        // チャンネルから離脱（他のユーザーに通知される）
+        await _engine!.leaveChannel();
+        _setConnectionState(AgoraConnectionState.disconnected);
+        
+        print('Agora: チャンネル離脱完了');
+      } else {
+        print('Agora: エンジンが既に解放されています');
+      }
       
       // 通話終了を記録（本番モードの場合）
       if (AgoraConfig.useTokenAuthentication && _currentChannelName != null) {
