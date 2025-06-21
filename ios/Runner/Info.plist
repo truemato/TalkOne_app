@@ -37,13 +37,13 @@
 		<string>_flutter._tcp</string>
 	</array>
 	<key>NSCameraUsageDescription</key>
-	<string>This app needs camera access for video chat.</string>
+	<string>TalkOneでビデオ通話をするために、カメラへのアクセスが必要です。</string>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>This app uses local network for development debugging and device communication.</string>
+	<string>TalkOneがローカルネットワーク上でデバッグとデバイス通信を行うために使用されます。</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>This app needs microphone access for voice chat.</string>
+	<string>TalkOneで音声通話をするために、マイクへのアクセスが必要です。</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>Speech recognition is used to convert your voice to text.</string>
+	<string>TalkOneであなたの音声をテキストに変換するために、音声認識機能が使用されます。</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UIBackgroundModes</key>

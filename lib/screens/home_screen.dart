@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lottie/lottie.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'matching_screen.dart';
 import 'profile_screen.dart';
 import 'history_screen.dart';
@@ -26,6 +27,7 @@ class _HomeScreenState extends State<HomeScreen>
 
   final UserProfileService _userProfileService = UserProfileService();
   int _userRating = 1000;
+  String? _currentUserId;
 
   // 背景アニメーションの状態管理
   int _currentBackgroundIndex = 0;
@@ -187,6 +189,13 @@ class _HomeScreenState extends State<HomeScreen>
       body: Stack(
         children: [
           SafeArea(child: Center(child: _buildContent(context, theme))),
+          // ユーザーID表示（メニューバーの上）
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 60, // メニューバーの高さ分上に配置
+            child: _buildUserIdDisplay(),
+          ),
           // 下部バー
           Positioned(
             left: 0,
@@ -328,6 +337,30 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
+  Widget _buildUserIdDisplay() {
+    if (_currentUserId == null) return const SizedBox.shrink();
+    
+    // UserIDの最初の8文字と最後の4文字を表示
+    final shortId = _currentUserId!.length > 8 
+        ? '${_currentUserId!.substring(0, 4)}...${_currentUserId!.substring(_currentUserId!.length - 4)}'
+        : _currentUserId!;
+    
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+      child: Center(
+        child: Text(
+          'User: $shortId',
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildTitle() {
     return Text(
       'Talk One',
@@ -445,7 +478,7 @@ class _HomeScreenState extends State<HomeScreen>
             builder: (context, child) => Text(
               '${_rateAnimation.value}',
               style: GoogleFonts.notoSans(
-                fontSize: 40,
+                fontSize: 38,
                 fontWeight: FontWeight.w700,
                 color: Colors.white,
               ),
@@ -653,6 +686,14 @@ class SettingsScreen extends StatelessWidget {
                   },
                 ),
                 ListTile(
+                  leading: const Icon(Icons.security, color: Colors.white),
+                  title: const Text('権限設定',
+                      style: TextStyle(color: Colors.white)),
+                  trailing: const Icon(Icons.arrow_forward_ios,
+                      color: Colors.white, size: 16),
+                  onTap: () => _showPermissionDialog(context),
+                ),
+                ListTile(
                   leading: const Icon(Icons.color_lens, color: Colors.white),
                   title: const Text('背景テーマ',
                       style: TextStyle(color: Colors.white)),
@@ -689,6 +730,99 @@ class SettingsScreen extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  // 権限ダイアログを表示
+  static void _showPermissionDialog(BuildContext context) async {
+    final micStatus = await Permission.microphone.status;
+    final cameraStatus = await Permission.camera.status;
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('権限設定'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: Icon(
+                Icons.mic,
+                color: micStatus == PermissionStatus.granted ? Colors.green : Colors.red,
+              ),
+              title: const Text('マイク'),
+              subtitle: Text(_getPermissionStatusText(micStatus)),
+              trailing: micStatus != PermissionStatus.granted
+                  ? TextButton(
+                      onPressed: () async {
+                        await Permission.microphone.request();
+                        Navigator.of(context).pop();
+                        _showPermissionDialog(context); // 再表示
+                      },
+                      child: const Text('許可する'),
+                    )
+                  : const Icon(Icons.check, color: Colors.green),
+            ),
+            ListTile(
+              leading: Icon(
+                Icons.camera_alt,
+                color: cameraStatus == PermissionStatus.granted ? Colors.green : Colors.red,
+              ),
+              title: const Text('カメラ'),
+              subtitle: Text(_getPermissionStatusText(cameraStatus)),
+              trailing: cameraStatus != PermissionStatus.granted
+                  ? TextButton(
+                      onPressed: () async {
+                        await Permission.camera.request();
+                        Navigator.of(context).pop();
+                        _showPermissionDialog(context); // 再表示
+                      },
+                      child: const Text('許可する'),
+                    )
+                  : const Icon(Icons.check, color: Colors.green),
+            ),
+            if (micStatus == PermissionStatus.permanentlyDenied || 
+                cameraStatus == PermissionStatus.permanentlyDenied)
+              Padding(
+                padding: const EdgeInsets.only(top: 16),
+                child: Column(
+                  children: [
+                    const Text(
+                      '権限が永続的に拒否されています。',
+                      style: TextStyle(color: Colors.red),
+                    ),
+                    TextButton(
+                      onPressed: () => openAppSettings(),
+                      child: const Text('設定アプリを開く'),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('閉じる'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 権限状態のテキストを取得
+  static String _getPermissionStatusText(PermissionStatus status) {
+    switch (status) {
+      case PermissionStatus.granted:
+        return '許可済み';
+      case PermissionStatus.denied:
+        return '拒否されています';
+      case PermissionStatus.permanentlyDenied:
+        return '永続的に拒否されています';
+      case PermissionStatus.restricted:
+        return '制限されています';
+      default:
+        return '不明';
+    }
   }
 }
 

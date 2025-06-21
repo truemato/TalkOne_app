@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'firebase_options.dart';
 import 'screens/home_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -7,6 +9,12 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // 縦向き固定
+  await SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,
+    DeviceOrientation.portraitDown,
+  ]);
   
   try {
     await Firebase.initializeApp(
@@ -18,6 +26,9 @@ Future<void> main() async {
       await FirebaseAuth.instance.signInAnonymously();
     }
     
+    // 権限の初期確認（必須権限のみ）
+    await _checkInitialPermissions();
+    
     runApp(const MyApp());
   } catch (e) {
     print('Firebase初期化エラー: $e');
@@ -25,6 +36,31 @@ Future<void> main() async {
   }
 }
 
+// 初期権限確認
+Future<void> _checkInitialPermissions() async {
+  try {
+    print('アプリ起動: 権限確認開始');
+    
+    // マイク権限の確認
+    final micStatus = await Permission.microphone.status;
+    print('マイク権限状態: $micStatus');
+    
+    if (micStatus == PermissionStatus.denied) {
+      print('マイク権限を要求中...');
+      final result = await Permission.microphone.request();
+      print('マイク権限要求結果: $result');
+    }
+    
+    // カメラ権限の確認（先にチェックのみ）
+    final cameraStatus = await Permission.camera.status;
+    print('カメラ権限状態: $cameraStatus');
+    
+    print('権限確認完了');
+  } catch (e) {
+    print('権限確認エラー: $e');
+    // エラーがあってもアプリは起動する
+  }
+}
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
