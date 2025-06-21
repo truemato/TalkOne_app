@@ -9,6 +9,19 @@ import '../services/user_profile_service.dart';
 import 'rematch_or_home_screen.dart';
 import 'partner_profile_screen.dart';
 
+// テーマ用データクラス
+class AppThemePalette {
+  final Color backgroundColor;
+  final Color barColor;
+  final Color callIconColor;
+
+  const AppThemePalette({
+    required this.backgroundColor,
+    required this.barColor,
+    required this.callIconColor,
+  });
+}
+
 class EvaluationScreen extends StatefulWidget {
   final String callId;
   final String partnerId;
@@ -36,16 +49,43 @@ class _EvaluationScreenState extends State<EvaluationScreen>
   final EvaluationService _evaluationService = EvaluationService();
   final UserProfileService _userProfileService = UserProfileService();
 
-  // ユーザーアイコンとテーマ
+  // 相手のアイコンとテーマ
   String? _selectedIconPath = 'aseets/icons/Woman 1.svg';
-  final List<Color> _themeColors = [
-    const Color(0xFF5A64ED), // 青紫
-    const Color(0xFFE91E63), // ピンク
-    const Color(0xFF4CAF50), // 緑
-    const Color(0xFFFF9800), // オレンジ
-    const Color(0xFF9C27B0), // 紫
-  ];
   int _selectedThemeIndex = 0;
+  
+  // テーマパレット定義
+  static const List<AppThemePalette> _appThemes = [
+    // 1. デフォルト
+    AppThemePalette(
+      backgroundColor: Color(0xFF5A64ED),
+      barColor: Color(0xFF979CDE),
+      callIconColor: Color(0xFF4CAF50),
+    ),
+    // 2. E6D283, EAC77A, F59A3E
+    AppThemePalette(
+      backgroundColor: Color(0xFFE6D283),
+      barColor: Color(0xFFEAC77A),
+      callIconColor: Color(0xFFF59A3E),
+    ),
+    // 3. A482E5, D7B3E8, D487E6
+    AppThemePalette(
+      backgroundColor: Color(0xFFA482E5),
+      barColor: Color(0xFFD7B3E8),
+      callIconColor: Color(0xFFD487E6),
+    ),
+    // 4. 83C8E6, B8D8E6, 618DAA
+    AppThemePalette(
+      backgroundColor: Color(0xFF83C8E6),
+      barColor: Color(0xFFB8D8E6),
+      callIconColor: Color(0xFF618DAA),
+    ),
+    // 5. F0941F, EF6024, 548AB6
+    AppThemePalette(
+      backgroundColor: Color(0xFFF0941F),
+      barColor: Color(0xFFEF6024),
+      callIconColor: Color(0xFF548AB6),
+    ),
+  ];
 
   @override
   void initState() {
@@ -64,11 +104,17 @@ class _EvaluationScreenState extends State<EvaluationScreen>
   }
 
   Future<void> _loadUserProfile() async {
-    final profile = await _userProfileService.getUserProfile();
-    if (profile != null && mounted) {
+    // 相手のプロフィールを読み込み
+    final partnerProfile = await _userProfileService.getUserProfileById(widget.partnerId);
+    if (partnerProfile != null && mounted) {
       setState(() {
-        _selectedIconPath = profile.iconPath ?? 'aseets/icons/Woman 1.svg';
-        _selectedThemeIndex = profile.themeIndex ?? 0;
+        _selectedIconPath = partnerProfile.iconPath ?? 'aseets/icons/Woman 1.svg';
+        // 相手のテーマインデックスを適用
+        _selectedThemeIndex = partnerProfile.themeIndex ?? 0;
+        // テーマインデックスが範囲外の場合はデフォルトに設定
+        if (_selectedThemeIndex >= _appThemes.length) {
+          _selectedThemeIndex = 0;
+        }
       });
     }
   }
@@ -87,8 +133,17 @@ class _EvaluationScreenState extends State<EvaluationScreen>
         isDummyMatch: widget.isDummyMatch,
       );
 
-      // レーティングシステムに反映
+      // レーティングシステムに反映（通話のみバージョン）
       await _ratingService.updateRating(rating, widget.partnerId);
+      
+      // AI通話関連ロジック（現在未使用）
+      // if (!widget.isDummyMatch) {
+      //   // 通常マッチ: 相手のレーティングを更新
+      //   await _ratingService.updateRating(rating, widget.partnerId);
+      // } else {
+      //   // AI通話: 自分のレーティングを少し上昇（星3相当で+1ポイント）
+      //   await _ratingService.updateRating(3);
+      // }
 
       print('評価送信完了: $rating星');
 
@@ -121,12 +176,13 @@ class _EvaluationScreenState extends State<EvaluationScreen>
     }
   }
 
-  Color get _currentThemeColor => _themeColors[_selectedThemeIndex];
+  Color get _currentThemeColor => _appThemes[_selectedThemeIndex].backgroundColor;
 
   @override
   Widget build(BuildContext context) {
+    final currentTheme = _appThemes[_selectedThemeIndex];
     return Scaffold(
-      backgroundColor: _currentThemeColor,
+      backgroundColor: currentTheme.backgroundColor,
       body: Platform.isAndroid
           ? SafeArea(child: _buildContent())
           : _buildContent(),
@@ -271,7 +327,9 @@ class _EvaluationScreenState extends State<EvaluationScreen>
                 child: Icon(
                   index < _selectedRating ? Icons.star : Icons.star_border,
                   size: 50,
-                  color: const Color(0xFFFFD700),
+                  color: index < _selectedRating
+                      ? const Color(0xFFFFD700)
+                      : Colors.white.withOpacity(0.6),
                 ),
               ),
             ),

@@ -80,30 +80,59 @@ class CallMatchingService {
         .collection('callRequests')
         .doc(callRequestId)
         .snapshots()
-        .listen((snapshot) {
-      if (!snapshot.exists) {
-        controller.add(null);
-        return;
-      }
-      
-      final data = snapshot.data()!;
-      final status = CallStatus.values.byName(data['status']);
-      
-      if (status == CallStatus.matched) {
-        final match = CallMatch(
-          callId: callRequestId,
-          partnerId: data['matchedWith'],
-          channelName: data['channelName'],
-          status: status,
-          enableAIFilter: data['enableAIFilter'] ?? false,
-          privacyMode: data['privacyMode'] ?? false,
+        .listen(
+          (snapshot) {
+            try {
+              if (!snapshot.exists) {
+                print('マッチングリスナー: ドキュメントが存在しません');
+                controller.add(null);
+                return;
+              }
+              
+              final data = snapshot.data()!;
+              final statusString = data['status'] as String?;
+              
+              if (statusString == null) {
+                print('マッチングリスナー: ステータスがnullです');
+                return;
+              }
+              
+              final status = CallStatus.values.byName(statusString);
+              print('マッチングリスナー: ステータス更新 - $status');
+              
+              if (status == CallStatus.matched) {
+                final partnerId = data['matchedWith'] as String?;
+                final channelName = data['channelName'] as String?;
+                
+                if (partnerId != null && channelName != null) {
+                  final match = CallMatch(
+                    callId: callRequestId,
+                    partnerId: partnerId,
+                    channelName: channelName,
+                    status: status,
+                    enableAIFilter: data['enableAIFilter'] ?? false,
+                    privacyMode: data['privacyMode'] ?? false,
+                  );
+                  print('マッチングリスナー: マッチ成功を通知 - $partnerId');
+                  controller.add(match);
+                } else {
+                  print('マッチングリスナー: マッチデータが不完全です');
+                }
+              } else if (status == CallStatus.cancelled || status == CallStatus.finished) {
+                print('マッチングリスナー: マッチング終了/キャンセル');
+                controller.add(null);
+                controller.close();
+              }
+            } catch (e) {
+              print('マッチングリスナーエラー: $e');
+              controller.addError(e);
+            }
+          },
+          onError: (error) {
+            print('マッチングリスナー購読エラー: $error');
+            controller.addError(error);
+          },
         );
-        controller.add(match);
-      } else if (status == CallStatus.cancelled || status == CallStatus.finished) {
-        controller.add(null);
-        controller.close();
-      }
-    });
     
     return controller.stream;
   }
@@ -116,18 +145,29 @@ class CallMatchingService {
       await _db.runTransaction((transaction) async {
         // 自分のリクエスト情報を取得
         final myRequestDoc = await transaction.get(_db.collection('callRequests').doc(callRequestId));
-        if (!myRequestDoc.exists) return;
+        if (!myRequestDoc.exists) {
+          print('通話マッチング: 自分のリクエストが存在しません');
+          return;
+        }
         
         final myData = myRequestDoc.data()!;
+        
+        // すでにマッチング済みかチェック
+        final currentStatus = myData['status'];
+        if (currentStatus != CallStatus.waiting.name) {
+          print('通話マッチング: 既に状態が変更されています - $currentStatus');
+          return;
+        }
+        
         final myRating = (myData['userRating'] ?? 1000.0).toDouble();
         final forceAIMatch = myData['forceAIMatch'] ?? false;
         
-        // AI強制マッチングまたはAI推奨条件の場合
-        if (forceAIMatch || await _evaluationService.shouldMatchWithAI(myRating)) {
-          print('通話マッチング: AI練習モードを開始');
-          await _createAIPartner(callRequestId, transaction);
-          return;
-        }
+        // AI強制マッチングまたはAI推奨条件の場合（AI機能無効化のためコメントアウト）
+        // if (forceAIMatch || await _evaluationService.shouldMatchWithAI(myRating)) {
+        //   print('通話マッチング: AI練習モードを開始');
+        //   await _createAIPartner(callRequestId, transaction);
+        //   return;
+        // }
         
         // レーティングベースマッチング
         final availablePartners = await _findRatingBasedPartners(myRating);
@@ -138,6 +178,13 @@ class CallMatchingService {
           final partnerDoc = availablePartners.first;
           final partnerId = partnerDoc['userId'];
           
+          // 相手のリクエストも再確認（データ競合防止）
+          final partnerRequestDoc = await transaction.get(_db.collection('callRequests').doc(partnerDoc.id));
+          if (!partnerRequestDoc.exists || partnerRequestDoc.data()?['status'] != CallStatus.waiting.name) {
+            print('通話マッチング: 相手のリクエストが無効です');
+            return;
+          }
+          
           // チャンネル名を生成
           final channelName = _generateChannelName();
           
@@ -145,18 +192,21 @@ class CallMatchingService {
           final myRequestRef = _db.collection('callRequests').doc(callRequestId);
           final partnerRequestRef = _db.collection('callRequests').doc(partnerDoc.id);
           
-          transaction.update(myRequestRef, {
+          // 更新データ
+          final updateData = {
             'status': CallStatus.matched.name,
-            'matchedWith': partnerId,
             'channelName': channelName,
             'matchedAt': FieldValue.serverTimestamp(),
+          };
+          
+          transaction.update(myRequestRef, {
+            ...updateData,
+            'matchedWith': partnerId,
           });
           
           transaction.update(partnerRequestRef, {
-            'status': CallStatus.matched.name,
+            ...updateData,
             'matchedWith': _userId,
-            'channelName': channelName,
-            'matchedAt': FieldValue.serverTimestamp(),
           });
           
           print('マッチング成功: $_userId <-> $partnerId (チャンネル: $channelName)');
@@ -251,31 +301,48 @@ class CallMatchingService {
             final channelName = _generateChannelName();
             
             await _db.runTransaction((transaction) async {
-              transaction.update(_db.collection('callRequests').doc(callRequestId), {
+              // 両方のリクエストの状態を再確認
+              final myDoc = await transaction.get(_db.collection('callRequests').doc(callRequestId));
+              final partnerRequestDoc = await transaction.get(_db.collection('callRequests').doc(partnerDoc.id));
+              
+              if (!myDoc.exists || myDoc.data()?['status'] != CallStatus.waiting.name) {
+                print('拡大マッチング: 自分のリクエストが無効です');
+                return;
+              }
+              
+              if (!partnerRequestDoc.exists || partnerRequestDoc.data()?['status'] != CallStatus.waiting.name) {
+                print('拡大マッチング: 相手のリクエストが無効です');
+                return;
+              }
+              
+              // 更新データ
+              final updateData = {
                 'status': CallStatus.matched.name,
-                'matchedWith': partnerId,
                 'channelName': channelName,
                 'matchedAt': FieldValue.serverTimestamp(),
+              };
+              
+              transaction.update(_db.collection('callRequests').doc(callRequestId), {
+                ...updateData,
+                'matchedWith': partnerId,
               });
               
               transaction.update(_db.collection('callRequests').doc(partnerDoc.id), {
-                'status': CallStatus.matched.name,
+                ...updateData,
                 'matchedWith': _userId,
-                'channelName': channelName,
-                'matchedAt': FieldValue.serverTimestamp(),
               });
             });
             
             print('拡大範囲マッチング成功: $_userId <-> $partnerId');
           } else {
-            // 20秒後：AI練習パートナーを提案
-            Future.delayed(const Duration(seconds: 10), () async {
-              final stillWaiting2 = await _db.collection('callRequests').doc(callRequestId).get();
-              if (stillWaiting2.exists && stillWaiting2.data()?['status'] == CallStatus.waiting.name) {
-                print('通話マッチング: AI練習パートナーを作成');
-                await _createAIPartner(callRequestId, null);
-              }
-            });
+            // 20秒後：AI練習パートナーを提案（AI機能無効化のためコメントアウト）
+            // Future.delayed(const Duration(seconds: 10), () async {
+            //   final stillWaiting2 = await _db.collection('callRequests').doc(callRequestId).get();
+            //   if (stillWaiting2.exists && stillWaiting2.data()?['status'] == CallStatus.waiting.name) {
+            //     print('通話マッチング: AI練習パートナーを作成');
+            //     await _createAIPartner(callRequestId, null);
+            //   }
+            // });
           }
         }
       } catch (e) {
@@ -284,33 +351,33 @@ class CallMatchingService {
     });
   }
   
-  // AI練習パートナーを作成
-  Future<void> _createAIPartner(String callRequestId, Transaction? transaction) async {
-    final channelName = _generateChannelName();
-    final aiPartnerId = 'ai_practice_${DateTime.now().millisecondsSinceEpoch}';
-    
-    final updateData = {
-      'status': CallStatus.matched.name,
-      'matchedWith': aiPartnerId,
-      'channelName': channelName,
-      'matchedAt': FieldValue.serverTimestamp(),
-      'isDummyMatch': true,  // AI練習のフラグ
-      'isAIMatch': true,     // AI練習専用フラグ
-    };
+  // AI練習パートナーを作成（AI機能無効化のためコメントアウト）
+  // Future<void> _createAIPartner(String callRequestId, Transaction? transaction) async {
+  //   final channelName = _generateChannelName();
+  //   final aiPartnerId = 'ai_practice_${DateTime.now().millisecondsSinceEpoch}';
+  //   
+  //   final updateData = {
+  //     'status': CallStatus.matched.name,
+  //     'matchedWith': aiPartnerId,
+  //     'channelName': channelName,
+  //     'matchedAt': FieldValue.serverTimestamp(),
+  //     'isDummyMatch': true,  // AI練習のフラグ
+  //     'isAIMatch': true,     // AI練習専用フラグ
+  //   };
+  //
+  //   if (transaction != null) {
+  //     transaction.update(_db.collection('callRequests').doc(callRequestId), updateData);
+  //   } else {
+  //     await _db.collection('callRequests').doc(callRequestId).update(updateData);
+  //   }
+  //   
+  //   print('AI練習パートナー作成完了: $aiPartnerId (チャンネル: $channelName)');
+  // }
 
-    if (transaction != null) {
-      transaction.update(_db.collection('callRequests').doc(callRequestId), updateData);
-    } else {
-      await _db.collection('callRequests').doc(callRequestId).update(updateData);
-    }
-    
-    print('AI練習パートナー作成完了: $aiPartnerId (チャンネル: $channelName)');
-  }
-
-  // テスト用ダミーパートナーを作成（後方互換性のため残す）
-  Future<void> _createDummyPartner(String callRequestId) async {
-    await _createAIPartner(callRequestId, null);
-  }
+  // テスト用ダミーパートナーを作成（後方互換性のため残す）（AI機能無効化のためコメントアウト）
+  // Future<void> _createDummyPartner(String callRequestId) async {
+  //   await _createAIPartner(callRequestId, null);
+  // }
   
   // チャンネル名を生成
   String _generateChannelName() {
@@ -322,13 +389,19 @@ class CallMatchingService {
   
   // 通話リクエストをキャンセル
   Future<void> cancelCallRequest(String callRequestId) async {
-    await _db.collection('callRequests').doc(callRequestId).update({
-      'status': CallStatus.cancelled.name,
-      'cancelledAt': FieldValue.serverTimestamp(),
-    });
-    
-    _matchingSubscription?.cancel();
-    _currentCallId = null;
+    try {
+      await _db.collection('callRequests').doc(callRequestId).update({
+        'status': CallStatus.cancelled.name,
+        'cancelledAt': FieldValue.serverTimestamp(),
+      });
+      
+      print('通話リクエストキャンセル完了: $callRequestId');
+    } catch (e) {
+      print('通話リクエストキャンセルエラー: $e');
+    } finally {
+      _matchingSubscription?.cancel();
+      _currentCallId = null;
+    }
   }
   
   // 通話終了をマーク
