@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:io' show Platform;
 import '../services/user_profile_service.dart';
 import '../services/rating_service.dart';
@@ -140,39 +142,222 @@ class _PartnerProfileScreenState extends State<PartnerProfileScreen> {
 
   Color get _currentThemeColor => _appThemes[_partnerThemeIndex].backgroundColor;
 
-  void _showReportDialog() {
-    showDialog(
+  Future<void> _showReportDialog() async {
+    final reasonController = TextEditingController();
+    final detailController = TextEditingController();
+    
+    final result = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text(
-          '通報',
-          style: GoogleFonts.notoSans(fontWeight: FontWeight.bold),
+          'ユーザーを通報',
+          style: GoogleFonts.notoSans(
+            fontWeight: FontWeight.bold,
+            fontSize: 18,
+          ),
         ),
-        content: Text(
-          'このユーザーを通報しますか？',
-          style: GoogleFonts.notoSans(),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '通報理由',
+                style: GoogleFonts.notoSans(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: reasonController,
+                decoration: InputDecoration(
+                  hintText: '例: 不適切な発言、迷惑行為など',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                ),
+                style: GoogleFonts.notoSans(),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                '詳細 (任意)',
+                style: GoogleFonts.notoSans(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: detailController,
+                maxLines: 3,
+                decoration: InputDecoration(
+                  hintText: '具体的な内容があれば記入してください',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                ),
+                style: GoogleFonts.notoSans(),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                '※通報内容は管理者に送信され、適切に対応いたします。',
+                style: GoogleFonts.notoSans(
+                  fontSize: 12,
+                  color: Colors.grey[600],
+                ),
+              ),
+            ],
+          ),
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: () => Navigator.of(context).pop(false),
             child: Text(
               'キャンセル',
               style: GoogleFonts.notoSans(color: Colors.grey),
             ),
           ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              _submitReportAndEvaluation();
-            },
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.of(context).pop(true),
             child: Text(
-              '通報する',
-              style: GoogleFonts.notoSans(color: Colors.red, fontWeight: FontWeight.bold),
+              '送信',
+              style: GoogleFonts.notoSans(fontWeight: FontWeight.bold),
             ),
           ),
         ],
       ),
     );
+
+    if (result == true && reasonController.text.trim().isNotEmpty) {
+      await _submitReport(
+        reason: reasonController.text.trim(),
+        detail: detailController.text.trim(),
+      );
+    } else if (result == true && reasonController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '通報理由を入力してください',
+            style: GoogleFonts.notoSans(color: Colors.white),
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+    
+    reasonController.dispose();
+    detailController.dispose();
+  }
+
+  Future<void> _submitReport({
+    required String reason,
+    required String detail,
+  }) async {
+    try {
+      // ローディング表示
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(
+          child: CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+          ),
+        ),
+      );
+
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        throw Exception('ユーザーが認証されていません');
+      }
+
+      // Firestoreの reports コレクションに通報データを保存
+      await FirebaseFirestore.instance.collection('reports').add({
+        'reporterUid': user.uid,
+        'reporterEmail': user.email ?? '',
+        'reportedUid': widget.partnerId,
+        'callId': widget.callId,
+        'reason': reason,
+        'detail': detail.isNotEmpty ? detail : null,
+        'isDummyMatch': widget.isDummyMatch,
+        'createdAt': FieldValue.serverTimestamp(),
+        'status': 'pending', // pending, reviewed, resolved
+      });
+
+      // 星1評価を自動送信（通報された相手のレーティングを下げる）
+      await _evaluationService.submitEvaluation(
+        callId: widget.callId,
+        partnerId: widget.partnerId,
+        rating: 1, // 星1
+        comment: '通報により自動評価',
+        isDummyMatch: widget.isDummyMatch,
+      );
+
+      // 相手のレーティングを更新
+      await _ratingService.updateRating(1, widget.partnerId);
+
+      // ローディングダイアログを閉じる
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+
+      // 通報完了メッセージを表示
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '通報を送信しました。管理者が確認いたします。',
+              style: GoogleFonts.notoSans(color: Colors.white),
+            ),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+
+      // 2秒後にRematchOrHomeScreenに遷移
+      await Future.delayed(const Duration(seconds: 2));
+      
+      if (mounted) {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(
+            builder: (context) => const RematchOrHomeScreen(),
+          ),
+          (route) => false, // 全ての前の画面を削除
+        );
+      }
+    } catch (e) {
+      // エラー処理
+      print('通報送信エラー: $e');
+      if (mounted) {
+        // ローディングダイアログを閉じる
+        Navigator.of(context).pop();
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '通報の送信に失敗しました。しばらく経ってから再度お試しください。',
+              style: GoogleFonts.notoSans(color: Colors.white),
+            ),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _submitReportAndEvaluation() async {
@@ -422,7 +607,7 @@ class _PartnerProfileScreenState extends State<PartnerProfileScreen> {
             ),
             elevation: 4,
           ),
-          onPressed: _showReportDialog,
+          onPressed: () => _showReportDialog(),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [

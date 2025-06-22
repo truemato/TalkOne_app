@@ -5,6 +5,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'matching_screen.dart';
 import 'profile_screen.dart';
 import 'history_screen.dart';
+import 'zundamon_chat_screen.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'dart:io' show Platform;
 import '../services/user_profile_service.dart';
@@ -333,6 +334,8 @@ class _HomeScreenState extends State<HomeScreen>
         SizedBox(height: screenHeight * 0.05),
         _buildAICallButton(theme),
         const SizedBox(height: 16),
+        _buildZundamonButton(theme),
+        const SizedBox(height: 16),
         _buildRateCounter(),
       ],
     );
@@ -514,6 +517,34 @@ class _HomeScreenState extends State<HomeScreen>
       ),
     );
   }
+
+
+  Widget _buildZundamonButton(AppThemePalette theme) {
+    return ElevatedButton(
+      onPressed: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const ZundamonChatScreen(),
+          ),
+        );
+      },
+      style: ElevatedButton.styleFrom(
+        backgroundColor: const Color(0xFF81C784), // ずんだもんカラー（薄緑）
+        shape: const CircleBorder(),
+        padding: const EdgeInsets.all(16),
+        elevation: 4,
+        shadowColor: Colors.black.withOpacity(0.1),
+      ),
+      child: const Icon(
+        Icons.smart_toy,
+        color: Colors.white,
+        size: 28,
+      ),
+    );
+  }
+
+
 
   // アイコン選択ダイアログ
   void _showIconSelectDialog() async {

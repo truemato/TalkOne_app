@@ -6,7 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 /// ユーザーの会話内容をSTTで文字化してFirestoreに保存し、
 /// AI機能の品質向上とデータ分析に活用します。
 class ConversationDataService {
-  static const FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   
   /// 新しい会話セッションを開始
   Future<String> startConversationSession({

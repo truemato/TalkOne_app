@@ -1,9 +1,9 @@
-// AI機能無効化のためVOICEVOXサービス全体をコメントアウト
-/*
 import 'dart:convert';
 import 'dart:typed_data';
+import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:audioplayers/audioplayers.dart';
+import 'package:path_provider/path_provider.dart';
 
 /// VOICEVOX音声合成サービス
 /// 
@@ -99,80 +99,130 @@ class VoiceVoxService {
         return true;
       }
     } catch (e) {
-      print('VOICEVOX Engine接続失敗 ($host): $e');
+      print('VOICEVOX Engine接続失敗: $host - $e');
     }
     return false;
   }
   
-  /// 利用可能な話者リストを取得
+  /// 利用可能な話者（キャラクター）のリストを取得
   Future<List<VoiceVoxSpeaker>> getSpeakers() async {
     try {
       final response = await http.get(
         Uri.parse('$_host/speakers'),
         headers: {'accept': 'application/json'},
-      );
+      ).timeout(const Duration(seconds: 10));
       
       if (response.statusCode == 200) {
-        final List<dynamic> data = jsonDecode(response.body);
-        return data.map((speaker) => VoiceVoxSpeaker.fromJson(speaker)).toList();
+        final List<dynamic> speakersJson = json.decode(response.body);
+        return speakersJson.map((json) => VoiceVoxSpeaker.fromJson(json)).toList();
       }
-      
-      throw Exception('話者リスト取得失敗: ${response.statusCode}');
     } catch (e) {
       print('話者リスト取得エラー: $e');
-      return [];
     }
+    return [];
   }
   
   /// テキストを音声合成して再生
   Future<bool> speak(String text) async {
-    if (text.trim().isEmpty) return false;
+    if (text.isEmpty) return false;
     
     try {
-      // 1. audio_queryでパラメータ取得
-      final queryUri = Uri.parse(
-        '$_host/audio_query?'
-        'text=${Uri.encodeComponent(text)}&'
-        'speaker=$_speakerId',
-      );
-      
+      // 音声クエリ作成（クエリパラメータ形式）
+      final encodedText = Uri.encodeComponent(text);
       final queryResponse = await http.post(
-        queryUri,
-        headers: {'accept': 'application/json'},
-      );
+        Uri.parse('$_host/audio_query?text=$encodedText&speaker=$_speakerId'),
+        headers: {'Content-Type': 'application/json'},
+      ).timeout(const Duration(seconds: 10));
       
       if (queryResponse.statusCode != 200) {
-        throw Exception('audio_query失敗: ${queryResponse.statusCode}');
+        print('音声クエリ作成失敗: ${queryResponse.statusCode}');
+        print('エラーレスポンス: ${queryResponse.body}');
+        return false;
       }
       
-      // 2. パラメータを調整
-      final Map<String, dynamic> queryJson = jsonDecode(queryResponse.body);
+      // パラメータを適用
+      final queryJson = json.decode(queryResponse.body);
       queryJson['speedScale'] = _speed;
       queryJson['pitchScale'] = _pitch;
       queryJson['intonationScale'] = _intonation;
       queryJson['volumeScale'] = _volume;
       
-      // 3. synthesisで音声生成
-      final synthUri = Uri.parse('$_host/synthesis?speaker=$_speakerId');
-      final synthResponse = await http.post(
-        synthUri,
-        headers: {
-          'accept': 'audio/wav',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode(queryJson),
-      );
+      // 音声合成
+      final synthesisResponse = await http.post(
+        Uri.parse('$_host/synthesis?speaker=$_speakerId&enable_interrogative_upspeak=true'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode(queryJson),
+      ).timeout(const Duration(seconds: 30));
       
-      if (synthResponse.statusCode != 200) {
-        throw Exception('synthesis失敗: ${synthResponse.statusCode}');
+      if (synthesisResponse.statusCode != 200) {
+        print('音声合成失敗: ${synthesisResponse.statusCode}');
+        return false;
       }
       
-      // 4. 音声再生
-      await _audioPlayer.play(BytesSource(synthResponse.bodyBytes));
-      return true;
+      // 音声再生（iOS対応）
+      final audioBytes = synthesisResponse.bodyBytes;
       
+      try {
+        // iOSの場合は一時ファイルに保存してから再生
+        if (Platform.isIOS) {
+          final tempDir = await getTemporaryDirectory();
+          final tempFile = File('${tempDir.path}/voicevox_${DateTime.now().millisecondsSinceEpoch}.wav');
+          await tempFile.writeAsBytes(audioBytes);
+          
+          // ファイルが正しく書き込まれたか確認
+          if (!tempFile.existsSync() || tempFile.lengthSync() == 0) {
+            throw Exception('音声ファイルの書き込みに失敗しました');
+          }
+          
+          // 新しいAudioPlayerインスタンスを作成（iOS用）
+          final iosPlayer = AudioPlayer();
+          
+          // iOS用の詳細設定
+          await iosPlayer.setPlayerMode(PlayerMode.mediaPlayer);
+          await iosPlayer.setReleaseMode(ReleaseMode.release);
+          
+          // ファイルURIとして設定
+          final source = DeviceFileSource(tempFile.path);
+          await iosPlayer.setSource(source);
+          
+          // 少し待機してから再生
+          await Future.delayed(const Duration(milliseconds: 100));
+          await iosPlayer.resume();
+          
+          // 再生完了を待つか、タイムアウト
+          try {
+            await iosPlayer.onPlayerComplete.first.timeout(
+              const Duration(seconds: 30),
+            );
+          } catch (e) {
+            print('音声再生タイムアウトまたはエラー: $e');
+          }
+          
+          // リソース解放
+          await iosPlayer.stop();
+          await iosPlayer.dispose();
+          
+          // ファイルを削除
+          if (tempFile.existsSync()) {
+            try {
+              tempFile.deleteSync();
+            } catch (e) {
+              print('一時ファイル削除エラー: $e');
+            }
+          }
+        } else {
+          // Androidの場合はメモリから直接再生
+          await _audioPlayer.play(BytesSource(audioBytes));
+        }
+        
+        print('VOICEVOX音声再生開始: ${text.length}文字');
+        return true;
+      } catch (e) {
+        print('音声再生エラー: $e');
+        return false;
+      }
     } catch (e) {
-      print('音声合成エラー: $e');
+      print('VOICEVOX音声合成エラー: $e');
       return false;
     }
   }
@@ -180,14 +230,6 @@ class VoiceVoxService {
   /// 音声再生を停止
   Future<void> stop() async {
     await _audioPlayer.stop();
-  }
-  
-  /// 再生中かチェック
-  bool get isPlaying => _audioPlayer.state == PlayerState.playing;
-  
-  /// リソースの解放
-  void dispose() {
-    _audioPlayer.dispose();
   }
   
   /// 現在の設定を取得
@@ -202,9 +244,14 @@ class VoiceVoxService {
       'volume': _volume,
     };
   }
+  
+  /// リソース解放
+  void dispose() {
+    _audioPlayer.dispose();
+  }
 }
 
-/// VOICEVOX話者情報
+/// VOICEVOX話者
 class VoiceVoxSpeaker {
   final String name;
   final String speakerUuid;
@@ -222,9 +269,9 @@ class VoiceVoxSpeaker {
     return VoiceVoxSpeaker(
       name: json['name'] ?? '',
       speakerUuid: json['speaker_uuid'] ?? '',
-      styles: (json['styles'] as List? ?? [])
-          .map((style) => VoiceVoxStyle.fromJson(style))
-          .toList(),
+      styles: (json['styles'] as List<dynamic>?)
+          ?.map((style) => VoiceVoxStyle.fromJson(style))
+          .toList() ?? [],
       version: json['version'] ?? '',
     );
   }
@@ -246,40 +293,7 @@ class VoiceVoxStyle {
     return VoiceVoxStyle(
       name: json['name'] ?? '',
       id: json['id'] ?? 0,
-      type: json['type'] ?? 'talk',
+      type: json['type'] ?? '',
     );
   }
 }
-
-/// 人格に応じた話者設定
-class PersonalityVoiceMapping {
-  static const Map<int, VoiceConfig> _personalityVoiceMap = {
-    1: VoiceConfig(speakerId: 1, speed: 1.0, pitch: 0.0, intonation: 1.0), // 親切
-    2: VoiceConfig(speakerId: 3, speed: 1.2, pitch: 0.1, intonation: 1.2), // 活発
-    3: VoiceConfig(speakerId: 0, speed: 0.9, pitch: -0.1, intonation: 0.9), // 穏やか
-    4: VoiceConfig(speakerId: 2, speed: 1.1, pitch: 0.05, intonation: 1.1), // 知的
-    5: VoiceConfig(speakerId: 4, speed: 0.95, pitch: 0.0, intonation: 1.0), // 優しい
-  };
-  
-  static VoiceConfig? getVoiceConfig(int personalityId) {
-    return _personalityVoiceMap[personalityId];
-  }
-}
-
-/// 音声設定
-class VoiceConfig {
-  final int speakerId;
-  final double speed;
-  final double pitch;
-  final double intonation;
-  final double volume;
-  
-  const VoiceConfig({
-    required this.speakerId,
-    required this.speed,
-    required this.pitch,
-    required this.intonation,
-    this.volume = 1.0,
-  });
-}
-*/
