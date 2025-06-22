@@ -728,9 +728,86 @@ VoiceCallScreen → EvaluationScreen → RematchOrHomeScreen
 - ✅ マッチング時のレート表示が正確に（100→1000）
 - ✅ ユーザー体験の向上
 
+### 2025年6月22日 - Agora SDK 6系音声問題解決・ネイティブ実装クリーンアップ完了
+**概要**: Agora Flutter SDK 6系の音声トラック設定問題を解決し、ネイティブ実装の完全クリーンアップを実施
+
+**問題の背景:**
+- 「Android、IOSともに接続中から戻りません」から「認証OK だが音が聞こえない」に進化
+- SDK 6系では`joinChannel()`のデフォルトが「音声も映像もpublishしない」に変更
+- ネイティブSDK実装とFlutter pluginの重複クラス競合が発生
+
+**実施内容:**
+1. **SDK 6系音声設定修正**
+   - `ChannelMediaOptions`で明示的に音声トラック設定
+   - `publishMicrophoneTrack: true` - 自分のマイクを送信
+   - `autoSubscribeAudio: true` - 相手の音声を受信
+   - `clientRoleType: ClientRoleType.clientRoleBroadcaster` - 必須設定
+   - `audioScenario: AudioScenarioType.audioScenarioDefault` - 安定設定
+
+2. **Android権限・設定追加**
+   - `MODIFY_AUDIO_SETTINGS`権限をAndroidManifest.xmlに追加
+   - `setDefaultAudioRouteToSpeakerphone(true)` - iOS/Android共通スピーカー出力
+
+3. **ネイティブ実装完全クリーンアップ**
+   - **Android**: `libs/agora-rtc-sdk.jar`、`jniLibs/`フォルダ削除
+   - **Android**: `build.gradle.kts`の`implementation(files("libs/agora-rtc-sdk.jar"))`削除
+   - **Android**: `MainActivity.kt`の`AgoraNativeService`参照削除
+   - **Android**: `AgoraNativeService.kt`ファイル削除
+   - **iOS**: `*.xcframework`Agoraフレームワーク削除
+   - **iOS**: `AppDelegate.swift`のAgoraNativeService統合コード削除
+   - **Flutter**: `lib/services/agora_native_service.dart`削除
+   - **依存関係**: Podfile.lock再構築、Flutter完全クリーン
+
+4. **App ID設定修正**
+   - 元App ID `4067eac9200f4aebb0fcf1b190eabd7d` でトークン認証エラー発生
+   - テスト用App ID `aab8b8f5a8cd4469a63042fcfafe7063` に変更（トークン不要）
+
+**技術的詳細:**
+```dart
+// 修正前（SDK 6系で無音になる）
+await engine.joinChannel(token, channelName, uid: uid, options: ChannelMediaOptions());
+
+// 修正後（正常に音声送受信）
+await engine.joinChannel(
+  token: token,
+  channelId: channelName,
+  uid: uid,
+  options: ChannelMediaOptions(
+    clientRoleType: ClientRoleType.clientRoleBroadcaster, // 必須
+    publishMicrophoneTrack: true, // 自分のマイクを送信
+    autoSubscribeAudio: true, // 相手の音声を受信
+  ),
+);
+```
+
+**解決されたエラー:**
+- `Duplicate class io.agora.rtc2.RtcEngine found in modules` - 重複クラス問題
+- `Transform's input file does not exist: agora-rtc-sdk.jar` - 存在しないファイル参照
+- `ErrorCodeType.errInvalidToken` - トークン認証エラー
+- `Unresolved reference 'AgoraNativeService'` - 削除済みサービス参照
+
+**修正されたファイル:**
+- `android/app/build.gradle.kts`: ネイティブSDK依存関係削除
+- `android/app/src/main/AndroidManifest.xml`: MODIFY_AUDIO_SETTINGS権限追加
+- `android/app/src/main/kotlin/com/truemato/MainActivity.kt`: AgoraNativeService参照削除
+- `ios/Runner/AppDelegate.swift`: AgoraRtcKit import・ネイティブ統合削除
+- `lib/services/agora_call_service.dart`: SDK 6系音声設定適用
+- `lib/config/agora_config.dart`: テスト用App IDに変更
+
+**結果:**
+- ✅ **音声通話完全復旧**: 「認証OK だが音が聞こえない」問題解決
+- ✅ **ビルドエラー解決**: 重複クラス・参照エラー完全解消
+- ✅ **クリーンアーキテクチャ**: Flutter plugin一本化による保守性向上
+- ✅ **SDK 6系完全対応**: 最新ベストプラクティス適用
+- ✅ **両OS対応**: Android・iOS両プラットフォームで正常動作
+
+**学習ポイント:**
+複雑なSDKは公式pluginを使うのが最も確実。ネイティブ実装は重複依存関係・設定不備・保守性の問題を引き起こす。SDK 6系の破壊的変更（デフォルト動作変更）には十分注意が必要。
+
 ## メモ・備考
 - Firebase Security Rules適切に設定済み
 - 商用展開可能レベルに到達
 - 全機能がiPhone・Android両対応
 - コードの品質・保守性良好
 - レーティングシステム完全統一済み
+- **Agora音声通話システム完全動作確認済み**
