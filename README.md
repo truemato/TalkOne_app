@@ -77,3 +77,25 @@ cd functions && npm ci        # Cloud Functions deps
 firebase emulators:start &    # Firestore/Auth emu
 flutter run -d chrome         # or -d ios / -d android
 ```
+
+---
+
+## 🔐 環境変数設定
+
+### 必須設定
+
+**`.env`ファイル編集例:**
+```env
+# Gemini AI API Key（AI機能に必要）
+GEMINI_API_KEY=your_gemini_api_key_here
+
+# Agora RTC App ID（音声・ビデオ通話に必須）
+AGORA_APP_ID=your_agora_app_id_here
+```
+
+### セキュリティ注意事項
+
+⚠️ **重要:** 
+- `.env`ファイルは**絶対にGitにコミットしないでください**
+- 本番環境では適切なAPI Key・App IDを設定してください
+- `.env.example`をテンプレートとして使用してください

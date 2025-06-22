@@ -1,7 +1,9 @@
 // lib/config/agora_config.dart
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+
 class AgoraConfig {
-  // Agora App ID (テスト用 - トークン不要)
-  static const String appId = "aab8b8f5a8cd4469a63042fcfafe7063";
+  // Agora App ID (.envから取得 - セキュリティ強化)
+  static String get appId => dotenv.env['AGORA_APP_ID'] ?? '';
   
   // App Certificate（本番環境では必須 - Cloud Runの環境変数で設定）
   static const String appCertificate = "YOUR_APP_CERTIFICATE_HERE";

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'firebase_options.dart';
 import 'screens/home_screen.dart';
 import 'screens/permission_denied_screen.dart';
@@ -10,6 +11,9 @@ import 'utils/permission_util.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // 環境変数を読み込み
+  await dotenv.load(fileName: ".env");
 
   // 縦向き固定
   await SystemChrome.setPreferredOrientations([
