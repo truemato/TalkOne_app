@@ -1470,7 +1470,6 @@ PODS:
 
 DEPENDENCIES:
   - agora_rtc_engine (from `.symlinks/plugins/agora_rtc_engine/ios`)
-  - AgoraRtcEngine_iOS (~> 4.5.0)
   - audioplayers_darwin (from `.symlinks/plugins/audioplayers_darwin/ios`)
   - cloud_firestore (from `.symlinks/plugins/cloud_firestore/ios`)
   - connectivity_plus (from `.symlinks/plugins/connectivity_plus/ios`)
@@ -1596,6 +1595,6 @@ SPEC CHECKSUMS:
   speech_to_text: 627d3fd2194770b51abb324ba45c2d39398f24a8
   Try: 5ef669ae832617b3cee58cb2c6f99fb767a4ff96
 
-PODFILE CHECKSUM: 2df76e525faf73e24b6978222dc8ae3d35ca7e02
+PODFILE CHECKSUM: dd10202568ac84f2395f447e1343b8a70e5179e1
 
 COCOAPODS: 1.16.2
