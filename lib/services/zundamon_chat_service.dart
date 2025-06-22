@@ -102,30 +102,42 @@ class ZundamonChatService {
       // AI初期化
       _aiModel = FirebaseAI.googleAI().generativeModel(model: Config.model);
       
-      // ニュートラルなGemini（性格設定なし）
+      // ずんだもんの性格設定（元気で親しみやすい妖精）
       const systemPrompt = '''
-あなたは知識豊富で親切なAIアシスタントです。
-ユーザーの質問や会話に対して、丁寧で分かりやすく応答してください。
+ボクは「ずんだもん」なのだ！東北の妖精で、10歳くらいなのだ〜。
+明るく元気いっぱいで、みんなを応援するのが大好きなのだ！
 
-重要な制約：
-1. 音声出力の速さを重視し、一度に140文字以内で簡潔に回答する
-2. 正確で有用な情報を提供する
-3. 相手の質問に的確に答える
-4. 自然な会話を心がける
-5. 相手のペースに合わせて会話する
+【性格・口調】
+- 語尾に「〜なのだ！」「〜のだ〜」をよく使うのだ
+- 明るく元気で素直、ちょっとおバカだけどAIだから知識はあるのだ
+- 「ボク」と自分を呼ぶのだ
+- 難しいことも一生懸命伝えようとするのだ
 
-特別な性格設定はありません。標準的なAIアシスタントとして振る舞ってください。
-会話は3分間の制限があり、音声合成時間を考慮して短めに回答してください。
+【口癖】
+「ボク、ずんだもんなのだ！元気とずんだパワーでがんばるのだ！」
+「それ、すっごくおもしろいのだ〜！」
+「ボクもがんばるから、一緒にがんばるのだ！」
+
+【会話ルール】
+1. 必ず80文字以内で返答するのだ（重要！）
+2. 相手を元気づけて励ますのだ
+3. 東北の豆知識も時々混ぜるのだ
+4. 争いは苦手で、みんな仲良くが大切なのだ
+5. わからないことは素直に「わからないのだ〜」と言うのだ
+
+【例】
+相手「疲れたな...」
+ボク「大丈夫なのだ！ボクが元気パワーを送るのだ〜！休憩も大事なのだ♪」
 ''';
       
       _chatSession = _aiModel.startChat(
         history: [
           Content.text(systemPrompt),
-          Content.model([TextPart('こんにちは。私はAIアシスタントです。何かお手伝いできることはありますか？')]),
+          Content.model([TextPart('ボク、ずんだもんなのだ！今日も元気いっぱいなのだ〜！何か話したいことあるのだ？')]),
         ],
         generationConfig: GenerationConfig(
-          temperature: 0.7,
-          maxOutputTokens: 100, // 140文字制限のため100トークンに制限
+          temperature: 0.8, // 元気な性格のため少し高めに
+          maxOutputTokens: 50, // 80文字制限のため50トークンに制限
           topP: 0.9,
           topK: 40,
         ),
@@ -153,10 +165,11 @@ class ZundamonChatService {
       
       // プラットフォーム別の初期化後処理
       if (Platform.isIOS) {
-        print('iOSずんだもんテスト音声を再生します');
+        print('iOSずんだもん初期化完了');
         Future.delayed(const Duration(milliseconds: 500), () async {
-          onAIResponse?.call('こんにちは！ずんだもんです。音声テストを開始します。');
-          await _speakWithVoicevox('こんにちは！ずんだもんです。音声テストを開始します。');
+          final welcomeMessage = 'ボク、ずんだもんなのだ！今日も元気いっぱいなのだ〜！何か話したいことあるのだ？';
+          onAIResponse?.call(welcomeMessage);
+          await _speakWithVoicevox(welcomeMessage);
         });
       } else if (Platform.isAndroid) {
         print('Androidずんだもん初期化完了');
@@ -395,12 +408,12 @@ class ZundamonChatService {
       final response = await _chatSession.sendMessage(Content.text(userText));
       var aiText = response.text ?? '';
       
-      // 140文字制限の適用
-      if (aiText.length > 140) {
-        aiText = aiText.substring(0, 140);
+      // 80文字制限の適用（ずんだもん用）
+      if (aiText.length > 80) {
+        aiText = aiText.substring(0, 80);
         // 最後の文が途切れている場合は、前の文で終了する
         final lastSentence = aiText.lastIndexOf('。');
-        if (lastSentence > 50) { // 最低50文字は確保
+        if (lastSentence > 30) { // 最低30文字は確保
           aiText = aiText.substring(0, lastSentence + 1);
         }
       }

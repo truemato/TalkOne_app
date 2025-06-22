@@ -238,7 +238,7 @@ class _AiPreCallScreenState extends State<AiPreCallScreen>
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          'AIとの会話で自信を取り戻そう！',
+                          'ボクと一緒にがんばるのだ〜！',
                           style: GoogleFonts.notoSans(
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
@@ -248,7 +248,7 @@ class _AiPreCallScreenState extends State<AiPreCallScreen>
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          'ずんだもんはいつでも優しく話を聞いてくれます',
+                          'ずんだパワーで元気いっぱいにするのだ！',
                           style: GoogleFonts.notoSans(
                             fontSize: 13,
                             color: Colors.grey[700],
