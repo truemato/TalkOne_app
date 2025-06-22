@@ -133,17 +133,15 @@ class _EvaluationScreenState extends State<EvaluationScreen>
         isDummyMatch: widget.isDummyMatch,
       );
 
-      // 相手のレーティングを更新（自分の値を参照しない、streakCountベース）
-      await _ratingService.updateRating(rating, widget.partnerId);
-      
-      // AI通話関連ロジック（現在未使用）
-      // if (!widget.isDummyMatch) {
-      //   // 通常マッチ: 相手のレーティングを更新
-      //   await _ratingService.updateRating(rating, widget.partnerId);
-      // } else {
-      //   // AI通話: 自分のレーティングを少し上昇（星3相当で+1ポイント）
-      //   await _ratingService.updateRating(3);
-      // }
+      // AI通話の場合は特別処理
+      if (widget.isDummyMatch || widget.partnerId.contains('ai_')) {
+        // AI通話: 相手（AI）には評価を送らず、自分がAIから星3評価を受ける
+        print('AI（ずんだもん）から星3の評価を受けました');
+        await _ratingService.updateRating(3, _userId); // 自分のレーティングを更新
+      } else {
+        // 通常マッチ: 相手のレーティングを更新
+        await _ratingService.updateRating(rating, widget.partnerId);
+      }
 
       print('評価送信完了: $rating星');
 

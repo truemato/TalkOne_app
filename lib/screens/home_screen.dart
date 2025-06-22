@@ -332,6 +332,52 @@ class _HomeScreenState extends State<HomeScreen>
           ),
         ),
         SizedBox(height: screenHeight * 0.05),
+        // レート850以下の場合、警告メッセージを表示
+        if (_userRating <= 850) ...[
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            margin: const EdgeInsets.symmetric(horizontal: 20),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFF9800).withOpacity(0.1), // オレンジ系の背景
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFFF9800).withOpacity(0.3)),
+            ),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.info_outline,
+                  color: Color(0xFFFF9800),
+                  size: 20,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'レート850以下のため、通話相手はAI（ずんだもん）になります',
+                        style: GoogleFonts.notoSans(
+                          fontSize: 13,
+                          color: const Color(0xFFFF9800),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'レート880を超えると人間との通話に戻ります',
+                        style: GoogleFonts.notoSans(
+                          fontSize: 12,
+                          color: const Color(0xFFFF9800).withOpacity(0.8),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
         _buildAICallButton(theme),
         const SizedBox(height: 16),
         _buildZundamonButton(theme),

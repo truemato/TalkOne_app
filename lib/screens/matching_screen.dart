@@ -7,6 +7,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/call_matching_service.dart';
 import '../services/user_profile_service.dart';
 import 'pre_call_profile_screen.dart';
+import 'ai_pre_call_screen.dart';
 
 class RateCounter extends StatefulWidget {
   final int targetRate;
@@ -265,9 +266,16 @@ class _MatchingScreenState extends State<MatchingScreen> {
 
   Future<void> _startMatching() async {
     try {
-      // 通話リクエストを作成（AI機能無効化のためforceAIMatchパラメータをコメントアウト）
+      // レート850以下の場合はAI強制フラグを表示
+      bool isLowRating = _userRating <= 850;
+      if (isLowRating) {
+        print('レート${_userRating}が850以下のため、AI（ずんだもん）とのマッチングを開始します');
+      }
+      
+      // 通話リクエストを作成（レート850以下は自動でAI判定）
       _callRequestId = await _matchingService.createCallRequest(
-        // forceAIMatch: widget.forceAIMatch,
+        forceAIMatch: false, // CallMatchingService内で自動判定
+        privacyMode: widget.privacyMode,
       );
       
       // マッチング監視開始
@@ -294,15 +302,32 @@ class _MatchingScreenState extends State<MatchingScreen> {
     _timer.cancel();
     _matchingSubscription?.cancel();
     
-    // プロフィール画面に遷移
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (_) => PreCallProfileScreen(
-          match: match,
+    // AIマッチかどうかを判定
+    final isAIMatch = match.partnerId.contains('ai_') || match.partnerId.contains('zundamon');
+    
+    if (isAIMatch) {
+      // AI専用プリコール画面に遷移
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => AiPreCallScreen(
+            callId: match.callId,
+            channelName: match.channelName,
+            isVideoCall: widget.isVideoCall,
+          ),
         ),
-      ),
-    );
+      );
+    } else {
+      // 通常のプロフィール画面に遷移
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => PreCallProfileScreen(
+            match: match,
+          ),
+        ),
+      );
+    }
   }
 
   void _handleMatchError(String error) {
@@ -392,6 +417,38 @@ class _MatchingScreenState extends State<MatchingScreen> {
                       _buildOnlineUsers(),
                       SizedBox(
                           height: contentHeight * 0.04), // オンラインユーザーとマッチング中の間（4%）
+                      // レート850以下の場合、AI通知を表示
+                      if (_userRating <= 850) ...[
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                          margin: const EdgeInsets.symmetric(horizontal: 20),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF81C784).withOpacity(0.9), // ずんだもんカラー
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.white.withOpacity(0.3)),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(
+                                Icons.smart_toy,
+                                color: Colors.white,
+                                size: 20,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'AI（ずんだもん）とマッチング中',
+                                style: GoogleFonts.notoSans(
+                                  fontSize: 14,
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                      ],
                       _buildMatchingText(),
                       SizedBox(
                           height: contentHeight * 0.06), // マッチング中とキャンセルボタンの間（6%）

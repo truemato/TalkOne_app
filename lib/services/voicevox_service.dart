@@ -122,45 +122,33 @@ class VoiceVoxService {
     return [];
   }
   
-  /// テキストを音声合成して再生
+  /// テキストを音声合成して再生（non-blocking TTS API使用）
   Future<bool> speak(String text) async {
     if (text.isEmpty) return false;
     
     try {
-      // 音声クエリ作成（クエリパラメータ形式）
-      final encodedText = Uri.encodeComponent(text);
-      final queryResponse = await http.post(
-        Uri.parse('$_host/audio_query?text=$encodedText&speaker=$_speakerId'),
+      // TTS API（一発変換）を使用
+      final ttsResponse = await http.post(
+        Uri.parse('$_host/tts'),
         headers: {'Content-Type': 'application/json'},
-      ).timeout(const Duration(seconds: 10));
-      
-      if (queryResponse.statusCode != 200) {
-        print('音声クエリ作成失敗: ${queryResponse.statusCode}');
-        print('エラーレスポンス: ${queryResponse.body}');
-        return false;
-      }
-      
-      // パラメータを適用
-      final queryJson = json.decode(queryResponse.body);
-      queryJson['speedScale'] = _speed;
-      queryJson['pitchScale'] = _pitch;
-      queryJson['intonationScale'] = _intonation;
-      queryJson['volumeScale'] = _volume;
-      
-      // 音声合成
-      final synthesisResponse = await http.post(
-        Uri.parse('$_host/synthesis?speaker=$_speakerId&enable_interrogative_upspeak=true'),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode(queryJson),
+        body: json.encode({
+          'text': text,
+          'speaker': _speakerId,
+          'speed': _speed,
+          'pitch': _pitch,
+          'intonation': _intonation,
+          'volume': _volume,
+        }),
       ).timeout(const Duration(seconds: 30));
       
-      if (synthesisResponse.statusCode != 200) {
-        print('音声合成失敗: ${synthesisResponse.statusCode}');
+      if (ttsResponse.statusCode != 200) {
+        print('TTS API音声合成失敗: ${ttsResponse.statusCode}');
+        print('エラーレスポンス: ${ttsResponse.body}');
         return false;
       }
       
       // 音声再生（iOS対応）
-      final audioBytes = synthesisResponse.bodyBytes;
+      final audioBytes = ttsResponse.bodyBytes;
       
       try {
         // iOSの場合は一時ファイルに保存してから再生

@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'evaluation_service.dart';
+import 'matching_warmup_service.dart';
 
 enum CallStatus {
   waiting,      // 待機中
@@ -17,6 +18,7 @@ class CallMatchingService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final String _userId = FirebaseAuth.instance.currentUser!.uid;
   final EvaluationService _evaluationService = EvaluationService();
+  final MatchingWarmupService _warmupService = MatchingWarmupService();
   
   StreamSubscription? _matchingSubscription;
   String? _currentCallId;
@@ -35,6 +37,18 @@ class CallMatchingService {
     // ユーザーの現在のレーティングを取得
     final userRating = await _evaluationService.getUserRating();
     
+    // レート850以下の場合、自動でAIマッチングを強制
+    // レート880超えたら人間とのマッチングに戻る
+    bool shouldForceAI = forceAIMatch;
+    if (userRating <= 850) {
+      shouldForceAI = true;
+      print('レート${userRating}が850以下のため、AI（ずんだもん）との自動マッチングを実行します');
+    } else if (userRating > 880 && userRating <= 900) {
+      // 850-880の間はAI練習中、880を超えたら人間とのマッチングに戻る
+      shouldForceAI = false;
+      print('レート${userRating}が880を超えたため、人間とのマッチングに戻ります');
+    }
+    
     await callRequestRef.set({
       'userId': _userId,
       'status': CallStatus.waiting.name,
@@ -42,9 +56,10 @@ class CallMatchingService {
       'matchedWith': null,
       'channelName': null,
       'userRating': userRating,
-      'forceAIMatch': forceAIMatch,
+      'forceAIMatch': shouldForceAI,
       'enableAIFilter': enableAIFilter,
       'privacyMode': privacyMode,
+      'autoAIReason': userRating <= 850 ? 'low_rating' : null, // 自動AI理由を記録
     });
     
     _currentCallId = callRequestRef.id;
@@ -105,6 +120,14 @@ class CallMatchingService {
                 final channelName = data['channelName'] as String?;
                 
                 if (partnerId != null && channelName != null) {
+                  // マッチング成立時のエンジンウォームアップ
+                  _warmupService.warmupEnginesOnMatching().then((success) {
+                    if (success) {
+                      print('VOICEVOX Engineウォームアップ完了');
+                    } else {
+                      print('VOICEVOX Engineウォームアップ失敗（通話には影響なし）');
+                    }
+                  });
                   final match = CallMatch(
                     callId: callRequestId,
                     partnerId: partnerId,
