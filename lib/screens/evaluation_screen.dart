@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lottie/lottie.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:io' show Platform;
 import '../services/rating_service.dart';
 import '../services/evaluation_service.dart';
@@ -137,7 +138,8 @@ class _EvaluationScreenState extends State<EvaluationScreen>
       if (widget.isDummyMatch || widget.partnerId.contains('ai_')) {
         // AI通話: 相手（AI）には評価を送らず、自分がAIから星3評価を受ける
         print('AI（ずんだもん）から星3の評価を受けました');
-        await _ratingService.updateRating(3, _userId); // 自分のレーティングを更新
+        final userId = FirebaseAuth.instance.currentUser?.uid ?? '';
+        await _ratingService.updateRating(3, userId); // 自分のレーティングを更新
       } else {
         // 通常マッチ: 相手のレーティングを更新
         await _ratingService.updateRating(rating, widget.partnerId);
