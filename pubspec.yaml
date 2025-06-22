@@ -51,6 +51,9 @@ dependencies:
   # ネットワーク接続確認
   connectivity_plus: ^6.0.2
   
+  # 環境変数管理
+  flutter_dotenv: ^5.1.0
+  
 dev_dependencies:
   flutter_test:
     sdk: flutter

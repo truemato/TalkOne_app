@@ -12,7 +12,7 @@ import UIKit
   ) -> Bool {
     GeneratedPluginRegistrant.register(with: self)
     
-    // Set up Flutter method channel safely
+    // Set up AI Filter method channel
     if let controller = window?.rootViewController as? FlutterViewController {
       let aiFilterChannel = FlutterMethodChannel(name: CHANNEL, binaryMessenger: controller.binaryMessenger)
       setupMethodChannel(aiFilterChannel)
@@ -89,3 +89,4 @@ import UIKit
     super.applicationWillTerminate(application)
   }
 }
+

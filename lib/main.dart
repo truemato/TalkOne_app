@@ -8,42 +8,41 @@ import 'screens/permission_denied_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'utils/permission_util.dart';
 
-
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   // 縦向き固定
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
-  
+
   try {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
-    
+
     // 匿名認証を自動で実行
     if (FirebaseAuth.instance.currentUser == null) {
       await FirebaseAuth.instance.signInAnonymously();
     }
-    
+
     // 初回起動時の権限処理
     print('main: 権限処理を開始します');
-    
+
     // デバッグ：初回起動フラグをリセット（本番では削除）
-    await PermissionUtil.resetFirstLaunchFlag();
-    
-    final permissionGranted = await PermissionUtil.handleFirstLaunchPermissions();
+    // await PermissionUtil.resetFirstLaunchFlag();
+
+    final permissionGranted =
+        await PermissionUtil.handleFirstLaunchPermissions();
     print('main: 権限処理結果 - permissionGranted: $permissionGranted');
-    
+
     runApp(MyApp(permissionGranted: permissionGranted));
   } catch (e) {
     print('Firebase初期化エラー: $e');
     runApp(ErrorApp(message: 'アプリの初期化に失敗しました: $e'));
   }
 }
-
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key, required this.permissionGranted});
@@ -59,16 +58,15 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepOrange),
       ),
       home: permissionGranted
-          ? const HomeScreen()  // 権限が許可されていればHomeScreenへ
+          ? const HomeScreen() // 権限が許可されていればHomeScreenへ
           : const PermissionDeniedScreen(), // 権限が拒否されていれば案内画面へ
     );
   }
 }
 
-
 class ErrorApp extends StatelessWidget {
   final String message;
-  
+
   const ErrorApp({super.key, required this.message});
 
   @override

@@ -1,7 +1,7 @@
 // lib/config/agora_config.dart
 class AgoraConfig {
-  // Agora App ID (本番用)
-  static const String appId = "4067eac9200f4aebb0fcf1b190eabd7d";
+  // Agora App ID (テスト用 - トークン不要)
+  static const String appId = "aab8b8f5a8cd4469a63042fcfafe7063";
   
   // App Certificate（本番環境では必須 - Cloud Runの環境変数で設定）
   static const String appCertificate = "YOUR_APP_CERTIFICATE_HERE";

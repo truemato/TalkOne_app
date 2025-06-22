@@ -1,6 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- 音声録音権限 -->
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <!-- 音声設定変更権限（Agora必須） -->
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
     <!-- カメラ権限 -->
     <uses-permission android:name="android.permission.CAMERA"/>
     <!-- インターネット権限 -->

@@ -99,48 +99,27 @@ class AgoraCallService {
       
       // エンジン初期化（iOS用の安全な設定）
       print('Agora: エンジン初期化開始...');
+      print('Agora: 使用するApp ID: ${AgoraConfig.appId}');
+      print('Agora: App ID長さ: ${AgoraConfig.appId.length}');
+      
       await _engine!.initialize(RtcEngineContext(
         appId: AgoraConfig.appId,
         channelProfile: ChannelProfileType.channelProfileCommunication,
-        audioScenario: AudioScenarioType.audioScenarioGameStreaming, // iOS用に変更
-        areaCode: 0xFFFFFFFF, // Global area code
+        audioScenario: AudioScenarioType.audioScenarioDefault, // 安定した設定
       ));
       
-      // 高品質音声設定
+      print('Agora: 基本設定を適用中...');
+      
+      // 最小限の設定で初期化
+      await _engine!.setClientRole(role: ClientRoleType.clientRoleBroadcaster);
+      
+      // 基本的な音声設定のみ
       await _engine!.setAudioProfile(
-        profile: AudioProfileType.audioProfileMusicHighQuality,
+        profile: AudioProfileType.audioProfileDefault,
         scenario: AudioScenarioType.audioScenarioDefault,
       );
       
-      // ビデオエンコーダー設定
-      await _engine!.setVideoEncoderConfiguration(
-        const VideoEncoderConfiguration(
-          dimensions: VideoDimensions(width: 640, height: 480),
-          frameRate: 15,
-          bitrate: 0, // 自動調整
-          orientationMode: OrientationMode.orientationModeAdaptive,
-          degradationPreference: DegradationPreference.maintainQuality,
-        ),
-      );
-      
-      // エコーキャンセレーション有効化
-      await _engine!.enableAudioVolumeIndication(
-        interval: 300,
-        smooth: 3,
-        reportVad: false,
-      );
-      
-      // ネットワーク品質最適化
-      await _engine!.enableDualStreamMode(enabled: true);
-      
-      // オーディオ前処理設定（ノイズ除去、エコーキャンセレーション強化）
-      await _engine!.setAudioEffectPreset(AudioEffectPreset.audioEffectOff);
-      await _engine!.setVoiceBeautifierPreset(VoiceBeautifierPreset.voiceBeautifierOff);
-      
-      // ネットワーク適応を有効化
-      await _engine!.setClientRole(role: ClientRoleType.clientRoleBroadcaster);
-      
-      print('Agora: Engine初期化完了（高品質設定適用）');
+      print('Agora: Engine初期化完了（基本設定）');
       
       // イベントハンドラーを設定
       _engine!.registerEventHandler(RtcEngineEventHandler(
@@ -232,16 +211,9 @@ class AgoraCallService {
         },
       ));
       
-      // 基本的な音声設定
-      await _engine!.enableAudio();
-      
-      // iOS用のオーディオセッション設定
-      await _engine!.setAudioSessionOperationRestriction(
-        AudioSessionOperationRestriction.audioSessionOperationRestrictionNone,
-      );
-      
-      // スピーカーフォンを有効化
-      await _engine!.setDefaultAudioRouteToSpeakerphone(true);
+      // 音声を有効化（念のため）
+      await _engine!.enableAudio(); // ローカルキャプチャ ON
+      await _engine!.setDefaultAudioRouteToSpeakerphone(true); // iOS/Android共通でスピーカー出力
       
       // iOS用の追加設定
       await _engine!.setChannelProfile(ChannelProfileType.channelProfileCommunication);
@@ -262,6 +234,26 @@ class AgoraCallService {
     } catch (e) {
       print('Agora初期化エラー: $e');
       print('エラーの詳細: ${e.toString()}');
+      
+      if (e is AgoraRtcException) {
+        print('エラーコード: ${e.code}');
+        // エラーコードの詳細
+        switch (e.code) {
+          case -4:
+            print('エラー: Invalid App ID - App IDが無効です');
+            print('現在のApp ID: "${AgoraConfig.appId}"');
+            print('App IDの文字数: ${AgoraConfig.appId.length}');
+            break;
+          case -2:
+            print('エラー: Invalid Argument - 引数が無効です');
+            break;
+          case -7:
+            print('エラー: Not Initialized - 初期化されていません');
+            break;
+          default:
+            print('エラー: 不明なエラーコード ${e.code}');
+        }
+      }
       
       // エンジンの解放
       if (_engine != null) {
@@ -366,14 +358,13 @@ class AgoraCallService {
       
       print('Agora: チャンネル参加試行 - Channel: $channelName, UID: $uid, Token: ${agoraToken == null ? "null" : "設定済み"}');
       
-      // チャンネルメディアオプションを設定
+      // チャンネルメディアオプションを設定（SDK 6系必須）
       final mediaOptions = ChannelMediaOptions(
-        clientRoleType: ClientRoleType.clientRoleBroadcaster,
-        channelProfile: ChannelProfileType.channelProfileCommunication,
-        autoSubscribeAudio: true, // 音声自動購読
-        autoSubscribeVideo: _isVideoEnabled, // ビデオ自動購読
-        publishMicrophoneTrack: true, // マイク音声を送信
+        clientRoleType: ClientRoleType.clientRoleBroadcaster, // Broadcasterでないとpublishが無視される
+        publishMicrophoneTrack: true, // 自分のマイクを送る
+        autoSubscribeAudio: true, // 相手の音声を自動受信
         publishCameraTrack: _isVideoEnabled, // カメラ映像を送信（ビデオ有効時のみ）
+        autoSubscribeVideo: _isVideoEnabled, // ビデオ自動購読
       );
       
       await _engine!.joinChannel(
