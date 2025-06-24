@@ -6,10 +6,13 @@ import 'matching_screen.dart';
 import 'profile_screen.dart';
 import 'history_screen.dart';
 import 'zundamon_chat_screen.dart';
+import 'settings_screen.dart';
+import 'notification_screen.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'dart:io' show Platform;
 import '../services/user_profile_service.dart';
 import '../utils/permission_util.dart';
+import '../utils/theme_utils.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -52,15 +55,12 @@ class _HomeScreenState extends State<HomeScreen>
   // AIアイコンのSVGパス
   String? _selectedIconPath = 'aseets/icons/Woman 1.svg';
   final List<String> _svgIcons = [
-    'aseets/icons/Guy 1.svg',
-    'aseets/icons/Guy 2.svg',
-    'aseets/icons/Guy 3.svg',
-    'aseets/icons/Guy 4.svg',
     'aseets/icons/Woman 1.svg',
     'aseets/icons/Woman 2.svg',
     'aseets/icons/Woman 3.svg',
-    'aseets/icons/Woman 4.svg',
-    'aseets/icons/Woman 5.svg',
+    'aseets/icons/Guy 1.svg',
+    'aseets/icons/Guy 3.svg',
+    'aseets/icons/Guy 4.svg',
   ];
 
   // HomeScreenのStateにテーマインデックスを追加
@@ -68,10 +68,9 @@ class _HomeScreenState extends State<HomeScreen>
 
   // コメント候補リストを追加
   final List<String> _randomComments = [
-    'こんにちは〜。今日もがんばってるね！',
-    'おつかれさま。ひといきつこ〜',
-    '今日はどんなアイディアが浮かんでる？',
-    'ご主人、AIが遊びたがっております〜！',
+    'こんにちは〜\n今日もがんばってるね！',
+    'おつかれさま\nひと息つこ〜',
+    '今どんなアイディアが\n浮かんでる?',
   ];
   late String _selectedComment;
 
@@ -185,7 +184,7 @@ class _HomeScreenState extends State<HomeScreen>
 
   @override
   Widget build(BuildContext context) {
-    final AppThemePalette theme = appThemes[_selectedThemeIndex];
+    final AppThemePalette theme = getAppTheme(_selectedThemeIndex);
     return Scaffold(
       backgroundColor: theme.backgroundColor,
       body: Stack(
@@ -198,7 +197,7 @@ class _HomeScreenState extends State<HomeScreen>
             bottom: 60, // メニューバーの高さ分上に配置
             child: _buildUserIdDisplay(),
           ),
-          // 下部バー
+          // 下部バー（iOS風統一レイアウト）
           Positioned(
             left: 0,
             right: 0,
@@ -213,6 +212,11 @@ class _HomeScreenState extends State<HomeScreen>
                       height: 60,
                       decoration: BoxDecoration(
                         color: theme.barColor,
+                        border: Border(
+                          top: BorderSide(color: theme.barColor, width: 1),
+                          left: BorderSide(color: theme.barColor, width: 1),
+                          right: BorderSide(color: theme.barColor, width: 1),
+                        ),
                         borderRadius: const BorderRadius.only(
                           topLeft: Radius.circular(10),
                           topRight: Radius.circular(10),
@@ -241,9 +245,11 @@ class _HomeScreenState extends State<HomeScreen>
                           IconButton(
                             icon: SvgPicture.asset('aseets/icons/Settings.svg',
                                 width: 29, height: 29),
-                            onPressed: () {
-                              Navigator.of(context)
+                            onPressed: () async {
+                              await Navigator.of(context)
                                   .push(_createSettingsRoute());
+                              // 設定画面から戻った時にテーマを更新
+                              _loadUserRating();
                             },
                           ),
                         ],
@@ -251,44 +257,62 @@ class _HomeScreenState extends State<HomeScreen>
                     ),
                   )
                 : Container(
-                    height: 60,
                     decoration: BoxDecoration(
-                      color: theme.barColor,
-                      borderRadius: const BorderRadius.only(
-                        topLeft: Radius.circular(10),
-                        topRight: Radius.circular(10),
+                      color: theme.barColor, // 背景全体をメニューバーの色で埋める
+                    ),
+                    child: SafeArea(
+                      top: false,
+                      left: false,
+                      right: false,
+                      bottom: true,
+                      child: Container(
+                        height: 60,
+                        decoration: BoxDecoration(
+                          color: theme.barColor,
+                          border: Border(
+                            top: BorderSide(color: theme.barColor, width: 1),
+                            left: BorderSide(color: theme.barColor, width: 1),
+                            right: BorderSide(color: theme.barColor, width: 1),
+                          ),
+                          borderRadius: const BorderRadius.only(
+                            topLeft: Radius.circular(10),
+                            topRight: Radius.circular(10),
+                          ),
+                        ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          IconButton(
+                            icon: SvgPicture.asset('aseets/icons/ber_Icon.svg',
+                                width: 32, height: 32),
+                            onPressed: () {
+                              Navigator.of(context).push(_createHistoryRoute());
+                            },
+                          ),
+                          const SizedBox(width: 64),
+                          IconButton(
+                            icon: SvgPicture.asset('aseets/icons/bell.svg',
+                                width: 36, height: 36),
+                            onPressed: () {
+                              Navigator.of(context)
+                                  .push(_createNotificationRoute());
+                            },
+                          ),
+                          const SizedBox(width: 64),
+                          IconButton(
+                            icon: SvgPicture.asset('aseets/icons/Settings.svg',
+                                width: 29, height: 29),
+                            onPressed: () async {
+                              await Navigator.of(context).push(_createSettingsRoute());
+                              // 設定画面から戻った時にテーマを更新
+                              _loadUserRating();
+                            },
+                          ),
+                        ],
                       ),
                     ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        IconButton(
-                          icon: SvgPicture.asset('aseets/icons/ber_Icon.svg',
-                              width: 32, height: 32),
-                          onPressed: () {
-                            Navigator.of(context).push(_createHistoryRoute());
-                          },
-                        ),
-                        const SizedBox(width: 64),
-                        IconButton(
-                          icon: SvgPicture.asset('aseets/icons/bell.svg',
-                              width: 36, height: 36),
-                          onPressed: () {
-                            Navigator.of(context)
-                                .push(_createNotificationRoute());
-                          },
-                        ),
-                        const SizedBox(width: 64),
-                        IconButton(
-                          icon: SvgPicture.asset('aseets/icons/Settings.svg',
-                              width: 29, height: 29),
-                          onPressed: () {
-                            Navigator.of(context).push(_createSettingsRoute());
-                          },
-                        ),
-                      ],
-                    ),
                   ),
+                ),
           ),
         ],
       ),
@@ -604,11 +628,12 @@ class _HomeScreenState extends State<HomeScreen>
             height: 200,
             child: GridView.count(
               crossAxisCount: 3,
+              childAspectRatio: 1.0,
               children: _svgIcons.map((iconPath) {
                 return GestureDetector(
                   onTap: () => Navigator.of(context).pop(iconPath),
                   child: Padding(
-                    padding: const EdgeInsets.all(8.0),
+                    padding: const EdgeInsets.all(12.0),
                     child: SvgPicture.asset(iconPath),
                   ),
                 );
@@ -629,19 +654,8 @@ class _HomeScreenState extends State<HomeScreen>
 
   // 設定画面へのスライド遷移
   Route _createSettingsRoute() {
-    final theme = appThemes[_selectedThemeIndex];
     return PageRouteBuilder(
-      pageBuilder: (context, animation, secondaryAnimation) => SettingsScreen(
-        currentThemeIndex: _selectedThemeIndex,
-        onThemeChanged: (int newIndex) async {
-          setState(() {
-            _selectedThemeIndex = newIndex;
-          });
-          // テーマをFirebaseに保存
-          await _userProfileService.updateThemeIndex(newIndex);
-        },
-        theme: theme,
-      ),
+      pageBuilder: (context, animation, secondaryAnimation) => const SettingsScreen(),
       transitionsBuilder: (context, animation, secondaryAnimation, child) {
         const begin = Offset(1.0, 0.0);
         const end = Offset.zero;
@@ -677,10 +691,9 @@ class _HomeScreenState extends State<HomeScreen>
 
   // 通知画面へのスライド遷移
   Route _createNotificationRoute() {
-    final theme = appThemes[_selectedThemeIndex];
     return PageRouteBuilder(
       pageBuilder: (context, animation, secondaryAnimation) =>
-          NotificationScreen(theme: theme),
+          const NotificationScreen(),
       transitionsBuilder: (context, animation, secondaryAnimation, child) {
         const begin = Offset(0.0, -1.0);
         const end = Offset.zero;
@@ -696,711 +709,3 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
 }
-
-// 設定画面本体
-class SettingsScreen extends StatelessWidget {
-  final int currentThemeIndex;
-  final void Function(int) onThemeChanged;
-  final AppThemePalette theme;
-  const SettingsScreen(
-      {super.key,
-      required this.currentThemeIndex,
-      required this.onThemeChanged,
-      required this.theme});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: theme.backgroundColor,
-      body: Column(
-        children: [
-          const SizedBox(height: 24),
-          Row(
-            children: [
-              IconButton(
-                icon: const Icon(Icons.arrow_back, color: Colors.white),
-                onPressed: () => Navigator.pop(context),
-              ),
-              const Expanded(
-                child: Center(
-                  child: Text(
-                    '設定',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
-              SizedBox(width: 48), // アイコン分のスペース
-            ],
-          ),
-          Expanded(
-            child: ListView(
-              children: [
-                ListTile(
-                  leading: const Icon(Icons.person, color: Colors.white),
-                  title: const Text('プロフィール設定',
-                      style: TextStyle(color: Colors.white)),
-                  trailing: const Icon(Icons.arrow_forward_ios,
-                      color: Colors.white, size: 16),
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const ProfileScreen()),
-                    );
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.info_outline, color: Colors.white),
-                  title: const Text('クレジット表記',
-                      style: TextStyle(color: Colors.white)),
-                  trailing: const Icon(Icons.arrow_forward_ios,
-                      color: Colors.white, size: 16),
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                          builder: (_) => CreditScreen(theme: theme)),
-                    );
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.security, color: Colors.white),
-                  title: const Text('権限設定',
-                      style: TextStyle(color: Colors.white)),
-                  trailing: const Icon(Icons.arrow_forward_ios,
-                      color: Colors.white, size: 16),
-                  onTap: () => _showPermissionDialog(context),
-                ),
-                ListTile(
-                  leading: const Icon(Icons.color_lens, color: Colors.white),
-                  title: const Text('背景テーマ',
-                      style: TextStyle(color: Colors.white)),
-                  subtitle: Row(
-                    children: List.generate(
-                        appThemes.length,
-                        (i) => GestureDetector(
-                              onTap: () {
-                                onThemeChanged(i);
-                                Navigator.pop(context);
-                              },
-                              child: Container(
-                                margin: const EdgeInsets.symmetric(
-                                    horizontal: 4, vertical: 8),
-                                width: 32,
-                                height: 32,
-                                decoration: BoxDecoration(
-                                  color: appThemes[i].backgroundColor,
-                                  border:
-                                      Border.all(color: Colors.white, width: 2),
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
-                                child: currentThemeIndex == i
-                                    ? const Icon(Icons.check,
-                                        color: Colors.white, size: 20)
-                                    : null,
-                              ),
-                            )),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // 権限ダイアログを表示
-  static void _showPermissionDialog(BuildContext context) async {
-    final micStatus = await Permission.microphone.status;
-    final cameraStatus = await Permission.camera.status;
-    
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('権限設定'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: Icon(
-                Icons.mic,
-                color: micStatus == PermissionStatus.granted ? Colors.green : Colors.red,
-              ),
-              title: const Text('マイク'),
-              subtitle: Text(_getPermissionStatusText(micStatus)),
-              trailing: micStatus != PermissionStatus.granted
-                  ? TextButton(
-                      onPressed: () async {
-                        await Permission.microphone.request();
-                        Navigator.of(context).pop();
-                        _showPermissionDialog(context); // 再表示
-                      },
-                      child: const Text('許可する'),
-                    )
-                  : const Icon(Icons.check, color: Colors.green),
-            ),
-            ListTile(
-              leading: Icon(
-                Icons.camera_alt,
-                color: cameraStatus == PermissionStatus.granted ? Colors.green : Colors.red,
-              ),
-              title: const Text('カメラ'),
-              subtitle: Text(_getPermissionStatusText(cameraStatus)),
-              trailing: cameraStatus != PermissionStatus.granted
-                  ? TextButton(
-                      onPressed: () async {
-                        await Permission.camera.request();
-                        Navigator.of(context).pop();
-                        _showPermissionDialog(context); // 再表示
-                      },
-                      child: const Text('許可する'),
-                    )
-                  : const Icon(Icons.check, color: Colors.green),
-            ),
-            if (micStatus == PermissionStatus.permanentlyDenied || 
-                cameraStatus == PermissionStatus.permanentlyDenied)
-              Padding(
-                padding: const EdgeInsets.only(top: 16),
-                child: Column(
-                  children: [
-                    const Text(
-                      '権限が永続的に拒否されています。',
-                      style: TextStyle(color: Colors.red),
-                    ),
-                    TextButton(
-                      onPressed: () => openAppSettings(),
-                      child: const Text('設定アプリを開く'),
-                    ),
-                  ],
-                ),
-              ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('閉じる'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // 権限状態のテキストを取得
-  static String _getPermissionStatusText(PermissionStatus status) {
-    switch (status) {
-      case PermissionStatus.granted:
-        return '許可済み';
-      case PermissionStatus.denied:
-        return '拒否されています';
-      case PermissionStatus.permanentlyDenied:
-        return '永続的に拒否されています';
-      case PermissionStatus.restricted:
-        return '制限されています';
-      default:
-        return '不明';
-    }
-  }
-}
-
-// プロフィール設定画面
-class ProfileSettingScreen extends StatelessWidget {
-  final AppThemePalette theme;
-  const ProfileSettingScreen({super.key, required this.theme});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: theme.backgroundColor,
-      body: Column(
-        children: [
-          const SizedBox(height: 24),
-          Row(
-            children: [
-              IconButton(
-                icon: const Icon(Icons.arrow_back, color: Colors.white),
-                onPressed: () => Navigator.pop(context),
-              ),
-              const Expanded(
-                child: Center(
-                  child: Text(
-                    'プロフィール設定',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
-              SizedBox(width: 48),
-            ],
-          ),
-          Expanded(
-            child: SingleChildScrollView(
-              child: Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'あなたのプロフィール',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    // ニックネーム
-                    _ProfileInputField(
-                      hintText: 'ニックネーム',
-                      inputType: TextInputType.text,
-                    ),
-                    const SizedBox(height: 20),
-                    // 性別（選択式の丸みを帯びた四角）
-                    _ProfileSelectBox(
-                      hintText: '性別',
-                      child: _GenderDropdown(),
-                    ),
-                    const SizedBox(height: 20),
-                    // 誕生日
-                    _ProfileSelectBox(
-                      hintText: '誕生日',
-                      child: _BirthdayField(),
-                    ),
-                    const SizedBox(height: 20),
-                    // AIに覚えておいてほしいこと
-                    _ProfileInputField(
-                      hintText: 'AIに覚えておいてほしいこと',
-                      inputType: TextInputType.multiline,
-                      maxLines: 3,
-                    ),
-                    const SizedBox(height: 32),
-                    Center(
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF979CDE),
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(20)),
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 40, vertical: 16),
-                        ),
-                        onPressed: () {},
-                        child: const Text('保存'),
-                      ),
-                    ),
-                    const SizedBox(height: 32),
-                    // 通報ボタン
-                    Center(
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFE05E37),
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(20)),
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 40, vertical: 16),
-                        ),
-                        onPressed: () {
-                          showDialog(
-                            context: context,
-                            builder: (context) => AlertDialog(
-                              title: const Text('通報'),
-                              content: const Text('通報が送信されました。'),
-                              actions: [
-                                TextButton(
-                                  onPressed: () => Navigator.of(context).pop(),
-                                  child: const Text('OK'),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                        child: const Text('通報'),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// 共通：丸みを帯びた四角の入力欄
-class _ProfileInputField extends StatelessWidget {
-  final String hintText;
-  final TextInputType inputType;
-  final int maxLines;
-  const _ProfileInputField({
-    required this.hintText,
-    required this.inputType,
-    this.maxLines = 1,
-  });
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.7),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: TextField(
-        keyboardType: inputType,
-        maxLines: maxLines,
-        style: const TextStyle(color: Colors.black),
-        decoration: InputDecoration(
-          hintText: hintText,
-          hintStyle: const TextStyle(
-              color: Color(0xFF4E3B7A), fontWeight: FontWeight.bold),
-          border: InputBorder.none,
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-        ),
-      ),
-    );
-  }
-}
-
-// 共通：丸みを帯びた四角の選択ボックス
-class _ProfileSelectBox extends StatelessWidget {
-  final String hintText;
-  final Widget child;
-  const _ProfileSelectBox({required this.hintText, required this.child});
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.7),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(left: 8, bottom: 4),
-            child: Text(
-              hintText,
-              style: const TextStyle(
-                  color: Color(0xFF4E3B7A), fontWeight: FontWeight.bold),
-            ),
-          ),
-          child,
-        ],
-      ),
-    );
-  }
-}
-
-// 性別選択（ドロップダウン式、透明度のある白背景）
-class _GenderDropdown extends StatefulWidget {
-  @override
-  State<_GenderDropdown> createState() => _GenderDropdownState();
-}
-
-class _GenderDropdownState extends State<_GenderDropdown> {
-  String? _selected;
-  final List<String> _genders = ['男性', '女性', '回答しない'];
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.7),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: _selected,
-          hint: const Text('選択してください',
-              style: TextStyle(
-                  color: Color(0xFF4E3B7A), fontWeight: FontWeight.bold)),
-          isExpanded: true,
-          dropdownColor: Colors.white.withOpacity(0.9),
-          style:
-              const TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
-          borderRadius: BorderRadius.circular(12),
-          items: _genders
-              .map((g) => DropdownMenuItem(
-                    value: g,
-                    child: Text(g),
-                  ))
-              .toList(),
-          onChanged: (v) => setState(() => _selected = v),
-        ),
-      ),
-    );
-  }
-}
-
-// 誕生日入力ウィジェット
-class _BirthdayField extends StatefulWidget {
-  @override
-  State<_BirthdayField> createState() => _BirthdayFieldState();
-}
-
-class _BirthdayFieldState extends State<_BirthdayField> {
-  DateTime? _selectedDate;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () async {
-        final picked = await showDatePicker(
-          context: context,
-          initialDate: DateTime(2000, 1, 1),
-          firstDate: DateTime(1900),
-          lastDate: DateTime.now(),
-          builder: (context, child) {
-            return Theme(
-              data: ThemeData.light().copyWith(
-                colorScheme: const ColorScheme.light(
-                  primary: Color(0xFF979CDE),
-                  onPrimary: Colors.white,
-                  surface: Colors.white,
-                  onSurface: Color(0xFF5A64ED),
-                ),
-              ),
-              child: child!,
-            );
-          },
-        );
-        if (picked != null) {
-          setState(() => _selectedDate = picked);
-        }
-      },
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Text(
-          _selectedDate == null
-              ? '選択してください'
-              : '${_selectedDate!.year}年${_selectedDate!.month}月${_selectedDate!.day}日',
-          style: const TextStyle(color: Color(0xFF5A64ED), fontSize: 16),
-        ),
-      ),
-    );
-  }
-}
-
-// クレジット表記画面
-class CreditScreen extends StatelessWidget {
-  final AppThemePalette theme;
-  const CreditScreen({super.key, required this.theme});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: theme.backgroundColor,
-      body: Column(
-        children: [
-          const SizedBox(height: 24),
-          Row(
-            children: [
-              IconButton(
-                icon: const Icon(Icons.arrow_back, color: Colors.white),
-                onPressed: () => Navigator.pop(context),
-              ),
-              const Expanded(
-                child: Center(
-                  child: Text(
-                    'クレジット表記',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
-              SizedBox(width: 48),
-            ],
-          ),
-          Expanded(
-            child: SingleChildScrollView(
-              child: Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // TalkOneタイトル
-                    Center(
-                      child: Text(
-                        'Talk One',
-                        style: GoogleFonts.caveat(
-                          fontSize: 60,
-                          color: const Color(0xFF4E3B7A),
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    // 謝辞タイトル（左寄せ）
-                    const Text(
-                      '謝辞',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      textAlign: TextAlign.left,
-                    ),
-                    const SizedBox(height: 16),
-                    // 謝辞内容（F9F2F2の丸みを帯びた四角、黒文字）
-                    Container(
-                      width: double.infinity,
-                      padding: EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: Color(0xFFF9F2F2),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: const Text(
-                        'VOICEVOX  …  © Hiroshiba Kazuyuki\n'
-                        'Fluent Emoji  …  © Microsoft\n'
-                        'Lottiefiles\n'
-                        '　Free Cold Mountain Background Animation\n'
-                        '　© Felipe Da Silva Pinho\n'
-                        'Figma\n'
-                        '　People Icons\n'
-                        '　© Terra Pappas\n'
-                        '\n'
-                        'MIT License\n'
-                        'Copyright (c)  yuu-1230, truemato\n'
-                        '\n'
-                        'Permission is hereby granted, free of charge, to any person obtaining a copy\n'
-                        'of this software and associated documentation files (the "Software"), to deal\n'
-                        'in the Software without restriction, including without limitation the rights\n'
-                        'to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\n'
-                        'copies of the Software, and to permit persons to whom the Software is\n'
-                        'furnished to do so, subject to the following conditions:\n'
-                        '　The above copyright notice and this permission notice shall be included in\n'
-                        '　all copies or substantial portions of the Software.\n'
-                        '\n'
-                        'THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\n'
-                        'IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\n'
-                        'FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\n'
-                        'AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\n'
-                        'LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\n'
-                        'OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\n'
-                        'SOFTWARE.',
-                        style: TextStyle(
-                            color: Colors.black, fontSize: 14, height: 1.7),
-                        textAlign: TextAlign.left,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-
-// 通知画面（仮）
-class NotificationScreen extends StatelessWidget {
-  final AppThemePalette theme;
-  const NotificationScreen({super.key, required this.theme});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: theme.backgroundColor,
-      body: Column(
-        children: [
-          const SizedBox(height: 24),
-          Row(
-            children: [
-              IconButton(
-                icon: const Icon(Icons.arrow_back, color: Colors.white),
-                onPressed: () => Navigator.pop(context),
-              ),
-              const Expanded(
-                child: Center(
-                  child: Text(
-                    '通知',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
-              SizedBox(width: 48),
-            ],
-          ),
-          const Expanded(
-            child: Center(
-              child: Text('通知画面（仮）', style: TextStyle(color: Colors.white)),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// テーマ用データクラス（matching_screen.dartから重複移動）
-class AppThemePalette {
-  final Color backgroundColor;
-  final Color barColor;
-  final Color callIconColor;
-
-  const AppThemePalette({
-    required this.backgroundColor,
-    required this.barColor,
-    required this.callIconColor,
-  });
-}
-
-// パレット一覧（matching_screen.dartから重複移動）
-const List<AppThemePalette> appThemes = [
-  // 1. デフォルト
-  AppThemePalette(
-    backgroundColor: Color(0xFF5A64ED),
-    barColor: Color(0xFF979CDE),
-    callIconColor: Color(0xFF4CAF50),
-  ),
-  // 2. E6D283, EAC77A, F59A3E
-  AppThemePalette(
-    backgroundColor: Color(0xFFE6D283),
-    barColor: Color(0xFFEAC77A),
-    callIconColor: Color(0xFFF59A3E),
-  ),
-  // 3. A482E5, D7B3E8, D487E6
-  AppThemePalette(
-    backgroundColor: Color(0xFFA482E5),
-    barColor: Color(0xFFD7B3E8),
-    callIconColor: Color(0xFFD487E6),
-  ),
-  // 4. 83C8E6, B8D8E6, 618DAA
-  AppThemePalette(
-    backgroundColor: Color(0xFF83C8E6),
-    barColor: Color(0xFFB8D8E6),
-    callIconColor: Color(0xFF618DAA),
-  ),
-  // 5. F0941F, EF6024, 548AB6
-  AppThemePalette(
-    backgroundColor: Color(0xFFF0941F),
-    barColor: Color(0xFFEF6024),
-    callIconColor: Color(0xFF548AB6),
-  ),
-];

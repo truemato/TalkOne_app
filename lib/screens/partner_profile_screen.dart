@@ -5,22 +5,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:io' show Platform;
 import '../services/user_profile_service.dart';
+import '../utils/theme_utils.dart';
 import '../services/rating_service.dart';
 import '../services/evaluation_service.dart';
 import 'rematch_or_home_screen.dart';
-
-// テーマ用データクラス
-class AppThemePalette {
-  final Color backgroundColor;
-  final Color barColor;
-  final Color callIconColor;
-
-  const AppThemePalette({
-    required this.backgroundColor,
-    required this.barColor,
-    required this.callIconColor,
-  });
-}
 
 class PartnerProfileScreen extends StatefulWidget {
   final String partnerId;
@@ -49,41 +37,6 @@ class _PartnerProfileScreenState extends State<PartnerProfileScreen> {
   String? _partnerComment = 'よろしくお願いします！'; // ダミー
   String? _partnerIconPath = 'aseets/icons/Woman 1.svg';
   int _partnerThemeIndex = 0;
-  
-  // テーマパレット定義
-  final List<AppThemePalette> _appThemes = [
-    // 1. デフォルト
-    const AppThemePalette(
-      backgroundColor: Color(0xFF5A64ED),
-      barColor: Color(0xFF979CDE),
-      callIconColor: Color(0xFF4CAF50),
-    ),
-    // 2. E6D283, EAC77A, F59A3E
-    const AppThemePalette(
-      backgroundColor: Color(0xFFE6D283),
-      barColor: Color(0xFFEAC77A),
-      callIconColor: Color(0xFFF59A3E),
-    ),
-    // 3. A482E5, D7B3E8, D487E6
-    const AppThemePalette(
-      backgroundColor: Color(0xFFA482E5),
-      barColor: Color(0xFFD7B3E8),
-      callIconColor: Color(0xFFD487E6),
-    ),
-    // 4. 83C8E6, B8D8E6, 618DAA
-    const AppThemePalette(
-      backgroundColor: Color(0xFF83C8E6),
-      barColor: Color(0xFFB8D8E6),
-      callIconColor: Color(0xFF618DAA),
-    ),
-    // 5. F0941F, EF6024, 548AB6
-    const AppThemePalette(
-      backgroundColor: Color(0xFFF0941F),
-      barColor: Color(0xFFEF6024),
-      callIconColor: Color(0xFF548AB6),
-    ),
-  ];
-  
   bool _isLoading = true;
 
   @override
@@ -101,11 +54,11 @@ class _PartnerProfileScreenState extends State<PartnerProfileScreen> {
         setState(() {
           _partnerNickname = profile.nickname ?? 'ユーザー';
           _partnerGender = profile.gender ?? '未設定';
-          _partnerComment = profile.aiMemory ?? 'よろしくお願いします！';
+          _partnerComment = profile.comment ?? 'よろしくお願いします！';
           _partnerIconPath = profile.iconPath ?? 'aseets/icons/Woman 1.svg';
           _partnerThemeIndex = profile.themeIndex ?? 0;
           // テーマインデックスが範囲外の場合はデフォルトに設定
-          if (_partnerThemeIndex >= _appThemes.length) {
+          if (_partnerThemeIndex >= themeCount) {
             _partnerThemeIndex = 0;
           }
           _isLoading = false;
@@ -140,7 +93,7 @@ class _PartnerProfileScreenState extends State<PartnerProfileScreen> {
     }
   }
 
-  Color get _currentThemeColor => _appThemes[_partnerThemeIndex].backgroundColor;
+  Color get _currentThemeColor => getAppTheme(_partnerThemeIndex).backgroundColor;
 
   Future<void> _showReportDialog() async {
     final reasonController = TextEditingController();
@@ -437,7 +390,7 @@ class _PartnerProfileScreenState extends State<PartnerProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final currentTheme = _appThemes[_partnerThemeIndex];
+    final currentTheme = getAppTheme(_partnerThemeIndex);
     return Scaffold(
       backgroundColor: currentTheme.backgroundColor, // 相手のテーマカラーを使用
       body: Platform.isAndroid 

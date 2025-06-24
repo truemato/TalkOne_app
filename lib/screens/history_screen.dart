@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'dart:io' show Platform;
 import '../services/call_history_service.dart';
 import '../services/user_profile_service.dart';
+import '../utils/theme_utils.dart';
 
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
@@ -17,13 +18,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
   final CallHistoryService _callHistoryService = CallHistoryService();
   final UserProfileService _userProfileService = UserProfileService();
   
-  final List<Color> _themeColors = [
-    const Color(0xFF5A64ED), // Default Blue
-    const Color(0xFFE6D283), // Golden
-    const Color(0xFFA482E5), // Purple
-    const Color(0xFF83C8E6), // Blue
-    const Color(0xFFF0941F), // Orange
-  ];
   int _selectedThemeIndex = 0;
 
   @override
@@ -41,7 +35,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
     }
   }
 
-  Color get _currentThemeColor => _themeColors[_selectedThemeIndex];
+  Color get _currentThemeColor => getAppTheme(_selectedThemeIndex).backgroundColor;
 
   String _formatDateTime(DateTime dateTime) {
     final now = DateTime.now();
@@ -76,6 +70,140 @@ class _HistoryScreenState extends State<HistoryScreen> {
           size: 16,
         );
       }),
+    );
+  }
+
+  void _showRatingDialog(CallHistory history) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        title: Text(
+          '${history.partnerNickname}との通話評価',
+          style: GoogleFonts.notoSans(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // 相手のアイコン
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                shape: BoxShape.circle,
+              ),
+              child: ClipOval(
+                child: SvgPicture.asset(
+                  history.partnerIconPath,
+                  fit: BoxFit.cover,
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            
+            // 自分の評価
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'あなたの評価:',
+                  style: GoogleFonts.notoSans(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                _buildStarRating(history.myRatingToPartner),
+              ],
+            ),
+            const SizedBox(height: 12),
+            
+            // 相手からの評価
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  '相手からの評価:',
+                  style: GoogleFonts.notoSans(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                _buildStarRating(history.partnerRatingToMe),
+              ],
+            ),
+            const SizedBox(height: 20),
+            
+            // 通話情報
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        '通話時間:',
+                        style: GoogleFonts.notoSans(
+                          fontSize: 12,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                      Text(
+                        _formatDuration(history.callDuration),
+                        style: GoogleFonts.notoSans(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        '通話日時:',
+                        style: GoogleFonts.notoSans(
+                          fontSize: 12,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                      Text(
+                        _formatDateTime(history.callDateTime),
+                        style: GoogleFonts.notoSans(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text(
+              '閉じる',
+              style: GoogleFonts.notoSans(
+                color: Theme.of(context).primaryColor,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -188,18 +316,21 @@ class _HistoryScreenState extends State<HistoryScreen> {
       ),
       child: Row(
         children: [
-          // アイコン
-          Container(
-            width: 50,
-            height: 50,
-            decoration: BoxDecoration(
-              color: Colors.grey.shade100,
-              shape: BoxShape.circle,
-            ),
-            child: ClipOval(
-              child: SvgPicture.asset(
-                history.partnerIconPath,
-                fit: BoxFit.cover,
+          // アイコン（タップ可能）
+          GestureDetector(
+            onTap: () => _showRatingDialog(history),
+            child: Container(
+              width: 50,
+              height: 50,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                shape: BoxShape.circle,
+              ),
+              child: ClipOval(
+                child: SvgPicture.asset(
+                  history.partnerIconPath,
+                  fit: BoxFit.cover,
+                ),
               ),
             ),
           ),

@@ -5,6 +5,7 @@ class UserProfile {
   final String? nickname;
   final String? gender;
   final DateTime? birthday;
+  final String? comment; // みんなに一言（20文字制限）
   final String? aiMemory;
   final String? iconPath;
   final int themeIndex;
@@ -15,6 +16,7 @@ class UserProfile {
     this.nickname,
     this.gender,
     this.birthday,
+    this.comment,
     this.aiMemory,
     this.iconPath,
     this.themeIndex = 0,
@@ -27,6 +29,7 @@ class UserProfile {
       'nickname': nickname,
       'gender': gender,
       'birthday': birthday?.millisecondsSinceEpoch,
+      'comment': comment,
       'aiMemory': aiMemory,
       'iconPath': iconPath,
       'themeIndex': themeIndex,
@@ -43,6 +46,7 @@ class UserProfile {
       birthday: map['birthday'] != null 
           ? DateTime.fromMillisecondsSinceEpoch(map['birthday'])
           : null,
+      comment: map['comment'],
       aiMemory: map['aiMemory'],
       iconPath: map['iconPath'],
       themeIndex: map['themeIndex'] ?? 0,
@@ -55,6 +59,7 @@ class UserProfile {
     String? nickname,
     String? gender,
     DateTime? birthday,
+    String? comment,
     String? aiMemory,
     String? iconPath,
     int? themeIndex,
@@ -65,6 +70,7 @@ class UserProfile {
       nickname: nickname ?? this.nickname,
       gender: gender ?? this.gender,
       birthday: birthday ?? this.birthday,
+      comment: comment ?? this.comment,
       aiMemory: aiMemory ?? this.aiMemory,
       iconPath: iconPath ?? this.iconPath,
       themeIndex: themeIndex ?? this.themeIndex,
@@ -135,6 +141,7 @@ class UserProfileService {
     String? nickname,
     String? gender,
     DateTime? birthday,
+    String? comment,
     String? aiMemory,
     String? iconPath,
     int? themeIndex,
@@ -149,6 +156,7 @@ class UserProfileService {
       if (nickname != null) updateData['nickname'] = nickname;
       if (gender != null) updateData['gender'] = gender;
       if (birthday != null) updateData['birthday'] = birthday.millisecondsSinceEpoch;
+      if (comment != null) updateData['comment'] = comment;
       if (aiMemory != null) updateData['aiMemory'] = aiMemory;
       if (iconPath != null) updateData['iconPath'] = iconPath;
       if (themeIndex != null) updateData['themeIndex'] = themeIndex;

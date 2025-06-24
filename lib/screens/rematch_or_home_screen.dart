@@ -21,6 +21,16 @@ class _RematchOrHomeScreenState extends State<RematchOrHomeScreen>
 
   final UserProfileService _userProfileService = UserProfileService();
   String? _selectedIconPath = 'aseets/icons/Woman 1.svg';
+  
+  // テーマカラー
+  final List<Color> _themeColors = [
+    const Color(0xFF5A64ED), // Default Blue
+    const Color(0xFFE6D283), // Golden  
+    const Color(0xFFA482E5), // Purple
+    const Color(0xFF83C8E6), // Blue
+    const Color(0xFFF0941F), // Orange
+  ];
+  int _selectedThemeIndex = 0;
 
   @override
   void initState() {
@@ -51,9 +61,12 @@ class _RematchOrHomeScreenState extends State<RematchOrHomeScreen>
     if (profile != null && mounted) {
       setState(() {
         _selectedIconPath = profile.iconPath ?? 'aseets/icons/Woman 1.svg';
+        _selectedThemeIndex = profile.themeIndex ?? 0;
       });
     }
   }
+  
+  Color get _currentThemeColor => _themeColors[_selectedThemeIndex];
 
   void _goToMatching() {
     Navigator.pushAndRemoveUntil(
@@ -78,7 +91,7 @@ class _RematchOrHomeScreenState extends State<RematchOrHomeScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF5A64ED),
+      backgroundColor: _currentThemeColor,
       body: SafeArea(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.start,

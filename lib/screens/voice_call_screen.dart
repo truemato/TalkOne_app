@@ -7,30 +7,20 @@ import '../services/user_profile_service.dart';
 import '../services/call_history_service.dart';
 import '../services/agora_call_service.dart';
 import 'evaluation_screen.dart';
-
-// テーマ用データクラス
-class AppThemePalette {
-  final Color backgroundColor;
-  final Color barColor;
-  final Color callIconColor;
-
-  const AppThemePalette({
-    required this.backgroundColor,
-    required this.barColor,
-    required this.callIconColor,
-  });
-}
+import '../utils/theme_utils.dart';
 
 class VoiceCallScreen extends StatefulWidget {
   final String channelName;
   final String callId;
   final String partnerId;
+  final String? conversationTheme;
 
   const VoiceCallScreen({
     super.key,
     required this.channelName,
     required this.callId,
     required this.partnerId,
+    this.conversationTheme,
   });
 
   @override
@@ -58,39 +48,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
   int _currentAudioVolume = 0;
   late AnimationController _volumeController;
   late Animation<double> _volumeAnimation;
-  // テーマパレット定義
-  final List<AppThemePalette> _appThemes = [
-    // 1. デフォルト
-    const AppThemePalette(
-      backgroundColor: Color(0xFF5A64ED),
-      barColor: Color(0xFF979CDE),
-      callIconColor: Color(0xFF4CAF50),
-    ),
-    // 2. E6D283, EAC77A, F59A3E
-    const AppThemePalette(
-      backgroundColor: Color(0xFFE6D283),
-      barColor: Color(0xFFEAC77A),
-      callIconColor: Color(0xFFF59A3E),
-    ),
-    // 3. A482E5, D7B3E8, D487E6
-    const AppThemePalette(
-      backgroundColor: Color(0xFFA482E5),
-      barColor: Color(0xFFD7B3E8),
-      callIconColor: Color(0xFFD487E6),
-    ),
-    // 4. 83C8E6, B8D8E6, 618DAA
-    const AppThemePalette(
-      backgroundColor: Color(0xFF83C8E6),
-      barColor: Color(0xFFB8D8E6),
-      callIconColor: Color(0xFF618DAA),
-    ),
-    // 5. F0941F, EF6024, 548AB6
-    const AppThemePalette(
-      backgroundColor: Color(0xFFF0941F),
-      barColor: Color(0xFFEF6024),
-      callIconColor: Color(0xFF548AB6),
-    ),
-  ];
+  // テーマインデックス
   int _selectedThemeIndex = 0;
   
   // タイマー関連
@@ -98,6 +56,44 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
   Timer? _timer;
   bool _callEnded = false;
   DateTime? _callStartTime;
+  
+  // 会話テーマリスト
+  final List<String> _conversationThemes = [
+    '🎯 自己紹介・自己理解系',
+    '最近ハマってること',
+    '好きな食べ物／嫌いな食べ物',
+    '休日の過ごし方',
+    '朝型？夜型？',
+    '自分の性格を一言で言うと？',
+    '今までで一番頑張ったこと',
+    '最近ちょっと変わったこと',
+    '尊敬している人',
+    '自分の中のマイルール',
+    '子どもの頃の夢',
+    '💬 日常会話・雑談系',
+    '最近観た映画／ドラマ',
+    '今日の天気、好き？',
+    '通勤・通学時間の過ごし方',
+    '最近びっくりしたこと',
+    '今、部屋にあるものでお気に入りは？',
+    '最近の「ちょっと嬉しかったこと」',
+    '毎日欠かさずやってること',
+    '今食べたいもの',
+    'おすすめのアプリ／ツール',
+    '今のスマホの待ち受け画面、どんなの？',
+    '💭 意見交換・感情表現系',
+    '幸せだなと思う瞬間は？',
+    'イライラしたとき、どうする？',
+    '自分って変わってるなと思うとき',
+    '友達ってどんな存在？',
+    'プレゼントするなら何を選ぶ？',
+    'あえて「何もしない時間」って必要？',
+    '人から言われて嬉しかった言葉',
+    '自分の中の「こだわり」って何？',
+    '落ち込んだときの立ち直り方',
+    'やってみたいけど、ちょっと怖いこと',
+  ];
+  late String _currentTheme;
 
   @override
   void initState() {
@@ -108,6 +104,10 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
     _initializeVolumeAnimation();
     _initializeAgora();
     _startCallTimer();
+    
+    // 共有テーマまたはランダムでテーマを選択
+    _currentTheme = widget.conversationTheme ?? 
+                   _conversationThemes[(DateTime.now().millisecondsSinceEpoch % _conversationThemes.length)];
   }
 
   @override
@@ -396,7 +396,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
     return '$minutes:${remainingSeconds.toString().padLeft(2, '0')}';
   }
 
-  Color get _currentThemeColor => _appThemes[_selectedThemeIndex].backgroundColor;
+  Color get _currentThemeColor => getAppTheme(_selectedThemeIndex).backgroundColor;
   
   // 音声レベルを更新してアイコンサイズを変更
   void _updateAudioVolume(int volume) {
@@ -416,7 +416,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
 
   @override
   Widget build(BuildContext context) {
-    final currentTheme = _appThemes[_selectedThemeIndex];
+    final currentTheme = getAppTheme(_selectedThemeIndex);
     return Scaffold(
       backgroundColor: currentTheme.backgroundColor,
       body: Platform.isAndroid 
@@ -435,6 +435,9 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
           children: [
             // 接続状態表示
             _buildConnectionStatus(),
+            
+            // 話題表示
+            _buildThemeDisplay(),
             
             // ユーザーアイコン
             Center(child: _buildUserIcon()),
@@ -474,7 +477,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
                 // 音声レベルが高い時の追加エフェクト
                 if (_currentAudioVolume > 30)
                   BoxShadow(
-                    color: _appThemes[_selectedThemeIndex].backgroundColor.withOpacity(0.3),
+                    color: getAppTheme(_selectedThemeIndex).backgroundColor.withOpacity(0.3),
                     blurRadius: 30,
                     spreadRadius: 5,
                   ),
@@ -511,7 +514,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
         style: GoogleFonts.notoSans(
           fontSize: 48,
           fontWeight: FontWeight.bold,
-          color: _appThemes[_selectedThemeIndex].backgroundColor,
+          color: getAppTheme(_selectedThemeIndex).backgroundColor,
         ),
       ),
     );
@@ -579,6 +582,33 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
     );
   }
 
+  Widget _buildThemeDisplay() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF9F2F2),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Text(
+        _currentTheme,
+        style: const TextStyle(
+          color: Color(0xFF4E3B7A),
+          fontSize: 16,
+          fontWeight: FontWeight.w600,
+        ),
+        textAlign: TextAlign.center,
+      ),
+    );
+  }
+
   Widget _buildCallControls() {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -605,7 +635,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
               onTap: _toggleMute,
               child: Icon(
                 _isMuted ? Icons.mic_off : Icons.mic,
-                color: _isMuted ? Colors.white : _appThemes[_selectedThemeIndex].backgroundColor,
+                color: _isMuted ? Colors.white : getAppTheme(_selectedThemeIndex).backgroundColor,
                 size: 28,
               ),
             ),

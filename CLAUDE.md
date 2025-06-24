@@ -944,6 +944,107 @@ await engine.joinChannel(
 **学習ポイント:**
 複雑なSDKは公式pluginを使うのが最も確実。ネイティブ実装は重複依存関係・設定不備・保守性の問題を引き起こす。SDK 6系の破壊的変更（デフォルト動作変更）には十分注意が必要。
 
+### 2025年6月23日 - TalkOne_test完全移植・UI修正完了
+**概要**: TalkOne_testからの完全移植とUI問題の修正を実施
+
+**実施内容:**
+1. **TalkOne_test完全移植実行**
+   - `/Users/hundlename/Test/TalkOne_test/lib`からの全画面移植完了
+   - 設定画面を背景表示・プロフィール・クレジットのみに限定
+   - プロフィール誕生日ラベルを「誕生日(他の人には公開されません)」に更新
+   - Chat_screenの話題表示機能をVoiceCallScreenに移植完了
+
+2. **UI修正（戻るボタン・メニューバー・コメント）**
+   - **戻るボタン位置修正**: 4つの画面で`SizedBox(height: 24)`を`SizedBox(height: 48)`に変更
+     - `credit_screen.dart`
+     - `notification_screen.dart`
+     - `profile_setting_screen.dart`
+     - `settings_screen.dart`
+   - **iPhoneメニューバー修正**: ホーム画面でiOS版にも`SafeArea`を適用し、ホームインジケーターとの重複を解消
+   - **ホーム画面コメント更新**:
+     - "こんにちは〜\n今日もがんばってるね！"
+     - "おつかれさま\nひと息つこ〜"
+     - "今どんなアイディアが\n浮かんでる?"
+     - "ご主人、AIが遊びたがっております〜！" を削除
+
+3. **話題表示機能完全実装**
+   - `VoiceCallScreen`に`_buildThemeDisplay()`メソッド追加
+   - 35種類の会話テーマからランダム選択
+   - 通話画面上部に話題を表示するUI実装
+   - TalkOne_testのchat_screen.dartと同様のデザイン適用
+
+**技術的詳細:**
+- 戻るボタンの高さを24px→48pxに変更で押しやすさ向上
+- iPhoneホームインジケーター対応でメニューバー重複解消
+- 会話テーマ表示で通話の活性化促進
+- 一言コメントの改行対応で吹き出し内の可読性向上
+
+**修正されたファイル:**
+- `lib/screens/credit_screen.dart`: 戻るボタン位置修正
+- `lib/screens/notification_screen.dart`: 戻るボタン位置修正
+- `lib/screens/profile_setting_screen.dart`: 戻るボタン位置修正
+- `lib/screens/settings_screen.dart`: 戻るボタン位置修正
+- `lib/screens/home_screen.dart`: メニューバー・コメント修正
+- `lib/screens/voice_call_screen.dart`: 話題表示機能追加
+
+**結果:**
+- ✅ TalkOne_testからの完全移植完了
+- ✅ UI操作性の大幅改善
+- ✅ iPhoneでのメニューバー問題解決
+- ✅ 通話画面での話題表示機能完成
+- ✅ ユーザビリティ向上
+
+### 2025年6月24日 - 透過デフォルト紫システム・話題共有・評価履歴・UI改善
+**概要**: デフォルト紫の透過システム実装、マッチング時の話題共有、評価履歴表示、各種UI改善
+
+**実施内容:**
+1. **透過デフォルト紫システム実装**
+   - `lib/utils/theme_utils.dart`に中央管理システム構築
+   - テーマ選択時（themeIndex > 0）にデフォルト紫を100%透過
+   - 画面遷移時の紫フラッシュ問題を完全解決
+   - 7つの主要画面で新システムを適用
+
+2. **マッチング時の話題共有システム**
+   - `CallMatchingService`に話題生成・共有機能追加
+   - 35種類の会話テーマから自動選択
+   - マッチング成立時に両ユーザーで同じ話題を共有
+   - `VoiceCallScreen`で共有話題を表示
+
+3. **通話履歴の評価表示機能**
+   - 履歴画面で相手アイコンタップで評価ダイアログ表示
+   - 双方向評価（自分の評価・相手からの評価）を視覚化
+   - 通話時間・日時も含めた詳細情報表示
+   - `syncRatingsFromEvaluations()`で評価データ同期
+
+4. **UI改善・修正**
+   - NotificationScreenをAppBar使用に統一
+   - RematchOrHomeScreenに動的テーマカラー適用
+   - iOS版ホーム画面メニューバーの隙間を解消
+   - プロフィール一言コメント表示を修正（comment フィールド使用）
+   - マッチング時コメントを「よろしくお願いします！」固定
+
+**技術的詳細:**
+- 透過システム: `getAppTheme()`関数で動的色変換
+- 話題共有: Firestore `conversationTheme`フィールドで同期
+- iOS対応: SafeArea外側Containerでホームインジケーター領域カバー
+- 評価同期: evaluationコレクション → callHistoriesへの自動同期
+
+**修正されたファイル:**
+- `lib/utils/theme_utils.dart`: 透過システム中央管理
+- `lib/services/call_matching_service.dart`: 話題生成・共有
+- `lib/screens/history_screen.dart`: 評価ダイアログ機能
+- `lib/screens/evaluation_screen.dart`: 評価同期処理
+- `lib/screens/pre_call_profile_screen.dart`: 話題パラメータ追加
+- `lib/screens/home_screen.dart`: iOSメニューバー修正
+- その他7画面: 透過システム適用
+
+**結果:**
+- ✅ 画面遷移時の紫フラッシュ完全解消
+- ✅ マッチングユーザー間で同じ話題を共有
+- ✅ 通話履歴から評価確認が可能に
+- ✅ iOS版UIの完成度向上
+- ✅ 一貫したテーマカラー体験の実現
+
 ## メモ・備考
 - Firebase Security Rules適切に設定済み
 - 商用展開可能レベルに到達
@@ -951,3 +1052,5 @@ await engine.joinChannel(
 - コードの品質・保守性良好
 - レーティングシステム完全統一済み
 - **Agora音声通話システム完全動作確認済み**
+- **TalkOne_test完全移植完了・UI修正完了**
+- **透過デフォルト紫システム・話題共有機能実装完了**

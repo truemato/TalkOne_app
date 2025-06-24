@@ -49,6 +49,9 @@ class CallMatchingService {
       print('レート${userRating}が880を超えたため、人間とのマッチングに戻ります');
     }
     
+    // 会話テーマをランダムに選択
+    final conversationTheme = _generateRandomTheme();
+    
     await callRequestRef.set({
       'userId': _userId,
       'status': CallStatus.waiting.name,
@@ -60,6 +63,7 @@ class CallMatchingService {
       'enableAIFilter': enableAIFilter,
       'privacyMode': privacyMode,
       'autoAIReason': userRating <= 850 ? 'low_rating' : null, // 自動AI理由を記録
+      'conversationTheme': conversationTheme, // 共有話題を追加
     });
     
     _currentCallId = callRequestRef.id;
@@ -135,6 +139,7 @@ class CallMatchingService {
                     status: status,
                     enableAIFilter: data['enableAIFilter'] ?? false,
                     privacyMode: data['privacyMode'] ?? false,
+                    conversationTheme: data['conversationTheme'] as String?,
                   );
                   print('マッチングリスナー: マッチ成功を通知 - $partnerId');
                   controller.add(match);
@@ -215,11 +220,15 @@ class CallMatchingService {
           final myRequestRef = _db.collection('callRequests').doc(callRequestId);
           final partnerRequestRef = _db.collection('callRequests').doc(partnerDoc.id);
           
+          // 自分のconversationThemeを相手にも同期
+          final myConversationTheme = myData['conversationTheme'] as String?;
+          
           // 更新データ
           final updateData = {
             'status': CallStatus.matched.name,
             'channelName': channelName,
             'matchedAt': FieldValue.serverTimestamp(),
+            'conversationTheme': myConversationTheme, // 共有話題を同期
           };
           
           transaction.update(myRequestRef, {
@@ -338,11 +347,15 @@ class CallMatchingService {
                 return;
               }
               
+              // 自分のconversationThemeを相手にも同期
+              final myConversationTheme = myDoc.data()?['conversationTheme'] as String?;
+              
               // 更新データ
               final updateData = {
                 'status': CallStatus.matched.name,
                 'channelName': channelName,
                 'matchedAt': FieldValue.serverTimestamp(),
+                'conversationTheme': myConversationTheme, // 共有話題を同期
               };
               
               transaction.update(_db.collection('callRequests').doc(callRequestId), {
@@ -442,6 +455,48 @@ class CallMatchingService {
   void dispose() {
     _matchingSubscription?.cancel();
   }
+  
+  // ランダムな会話テーマを生成
+  String _generateRandomTheme() {
+    final conversationThemes = [
+      '🎯 自己紹介・自己理解系',
+      '最近ハマってること',
+      '好きな食べ物／嫌いな食べ物',
+      '休日の過ごし方',
+      '朝型？夜型？',
+      '自分の性格を一言で言うと？',
+      '今までで一番頑張ったこと',
+      '最近ちょっと変わったこと',
+      '尊敬している人',
+      '自分の中のマイルール',
+      '子どもの頃の夢',
+      '💬 日常会話・雑談系',
+      '最近観た映画／ドラマ',
+      '今日の天気、好き？',
+      '通勤・通学時間の過ごし方',
+      '最近びっくりしたこと',
+      '今、部屋にあるものでお気に入りは？',
+      '最近の「ちょっと嬉しかったこと」',
+      '毎日欠かさずやってること',
+      '今食べたいもの',
+      'おすすめのアプリ／ツール',
+      '今のスマホの待ち受け画面、どんなの？',
+      '💭 意見交換・感情表現系',
+      '幸せだなと思う瞬間は？',
+      'イライラしたとき、どうする？',
+      '自分って変わってるなと思うとき',
+      '友達ってどんな存在？',
+      'プレゼントするなら何を選ぶ？',
+      'あえて「何もしない時間」って必要？',
+      '人から言われて嬉しかった言葉',
+      '自分の中の「こだわり」って何？',
+      '落ち込んだときの立ち直り方',
+      'やってみたいけど、ちょっと怖いこと',
+    ];
+    
+    final random = Random();
+    return conversationThemes[random.nextInt(conversationThemes.length)];
+  }
 }
 
 // マッチング結果を表すクラス
@@ -452,6 +507,7 @@ class CallMatch {
   final CallStatus status;
   final bool enableAIFilter;
   final bool privacyMode;
+  final String? conversationTheme;
   
   CallMatch({
     required this.callId,
@@ -460,5 +516,6 @@ class CallMatch {
     required this.status,
     this.enableAIFilter = false,
     this.privacyMode = false,
+    this.conversationTheme,
   });
 }

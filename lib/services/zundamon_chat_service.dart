@@ -433,8 +433,8 @@ class ZundamonChatService {
           );
         }
         
-        // 音声合成（VoiceVoxServiceを使用）
-        await _speakWithVoicevox(aiText);
+        // チャンク分割して音声合成
+        await _processChunkedSpeech(aiText);
       }
     } catch (e) {
       onError?.call('AI応答エラー: $e');
@@ -446,7 +446,111 @@ class ZundamonChatService {
     }
   }
   
-  /// VOICEVOX音声合成（ずんだもん）
+  /// テキストをチャンクに分割して順次音声合成
+  Future<void> _processChunkedSpeech(String text) async {
+    try {
+      // 音声認識を確実に停止
+      if (_isListening) {
+        print('音声認識を停止します');
+        await stopListening();
+        await Future.delayed(const Duration(milliseconds: 300));
+      }
+      
+      // テキストをチャンクに分割
+      final chunks = _splitTextIntoChunks(text);
+      print('テキストを${chunks.length}個のチャンクに分割');
+      
+      // 各チャンクを順番に音声合成・再生
+      for (int i = 0; i < chunks.length; i++) {
+        final chunk = chunks[i];
+        print('チャンク${i + 1}/${chunks.length}: "$chunk"');
+        
+        // VoiceVoxServiceを使用して音声合成
+        final success = await _voiceVoxService.speak(chunk);
+        
+        if (!success) {
+          print('チャンク${i + 1}の音声合成に失敗');
+          // フォールバックでTTS使用
+          await _tts.speak(chunk);
+        }
+        
+        // 音声再生完了を待つ（チャンクごとに短め）
+        final waitTime = (chunk.length * 60).clamp(1000, 4000);
+        print('チャンク${i + 1}再生待機時間: ${waitTime}ms');
+        await Future.delayed(Duration(milliseconds: waitTime));
+      }
+      
+      // 全チャンク再生完了後、音声認識再開
+      print('全チャンク再生完了、音声認識を再開します');
+      if (_isInitialized && !_isListening) {
+        print('音声認識再開を実行');
+        await Future.delayed(const Duration(milliseconds: 500));
+        _androidRetryCount = 0; // Android再試行カウンターリセット
+        await startListening();
+      } else {
+        print('音声認識再開をスキップ: initialized=$_isInitialized, listening=$_isListening');
+      }
+    } catch (e) {
+      print('チャンク音声合成エラー: $e');
+      // フォールバック
+      await _speakWithTts(text);
+    }
+  }
+  
+  /// テキストを句読点ベースでチャンクに分割
+  List<String> _splitTextIntoChunks(String text) {
+    final List<String> chunks = [];
+    final punctuationPattern = RegExp(r'[。、！？,.!?]');
+    
+    int start = 0;
+    while (start < text.length) {
+      // 次の句読点を探す
+      final matches = punctuationPattern.allMatches(text, start);
+      
+      if (matches.isEmpty) {
+        // 残りのテキストをチャンクとして追加
+        chunks.add(text.substring(start).trim());
+        break;
+      }
+      
+      // 最初の句読点の位置
+      final match = matches.first;
+      final punctuationEnd = match.end;
+      
+      // 句読点の次の文字を確認（次の単語や文節まで含める）
+      int chunkEnd = punctuationEnd;
+      
+      // 次の単語の開始を探す（スペースや改行をスキップ）
+      while (chunkEnd < text.length && 
+             (text[chunkEnd] == ' ' || 
+              text[chunkEnd] == '\n' || 
+              text[chunkEnd] == '\t')) {
+        chunkEnd++;
+      }
+      
+      // 次の句読点または区切り文字まで含める
+      while (chunkEnd < text.length && 
+             !punctuationPattern.hasMatch(text[chunkEnd]) &&
+             text[chunkEnd] != ' ' && 
+             text[chunkEnd] != '\n' &&
+             chunkEnd - punctuationEnd < 10) { // 最大10文字まで
+        chunkEnd++;
+      }
+      
+      // チャンクを追加
+      final chunk = text.substring(start, chunkEnd).trim();
+      if (chunk.isNotEmpty) {
+        chunks.add(chunk);
+      }
+      
+      start = chunkEnd;
+    }
+    
+    // 空のチャンクを除去
+    return chunks.where((chunk) => chunk.isNotEmpty).toList();
+  }
+  
+  /// VOICEVOX音声合成（ずんだもん）- 単一テキスト用
   Future<void> _speakWithVoicevox(String text) async {
     try {
       print('ずんだもん音声合成開始: speaker_id=$_speakerId, text="$text"');

@@ -8,6 +8,7 @@ import '../services/call_matching_service.dart';
 import '../services/user_profile_service.dart';
 import 'pre_call_profile_screen.dart';
 import 'ai_pre_call_screen.dart';
+import '../utils/theme_utils.dart';
 
 class RateCounter extends StatefulWidget {
   final int targetRate;
@@ -120,18 +121,17 @@ class MatchingScreen extends StatefulWidget {
   State<MatchingScreen> createState() => _MatchingScreenState();
 }
 
-class _MatchingScreenState extends State<MatchingScreen> {
+class _MatchingScreenState extends State<MatchingScreen>
+    with TickerProviderStateMixin {
   final CallMatchingService _matchingService = CallMatchingService();
   final UserProfileService _userProfileService = UserProfileService();
   
-  // テーマカラー
-  final List<Color> _themeColors = [
-    const Color(0xFF5A64ED), // 青紫
-    const Color(0xFFE91E63), // ピンク
-    const Color(0xFF4CAF50), // 緑
-    const Color(0xFFFF9800), // オレンジ
-    const Color(0xFF9C27B0), // 紫
-  ];
+  // シュリンクアニメーション用
+  late AnimationController _shrinkController;
+  late Animation<double> _shrinkAnimation;
+  bool _isMatchFound = false;
+  
+  // テーマインデックス
   int _selectedThemeIndex = 0;
   
   late Timer _timer;
@@ -145,6 +145,21 @@ class _MatchingScreenState extends State<MatchingScreen> {
   @override
   void initState() {
     super.initState();
+    
+    // シュリンクアニメーション初期化
+    _shrinkController = AnimationController(
+      duration: const Duration(milliseconds: 500),
+      vsync: this,
+    );
+    
+    _shrinkAnimation = Tween<double>(
+      begin: 1.0,
+      end: 0.0,
+    ).animate(CurvedAnimation(
+      parent: _shrinkController,
+      curve: Curves.easeInBack,
+    ));
+    
     _loadUserRating();
     _startOnlineUsersListener();
     _startMatching();
@@ -158,6 +173,7 @@ class _MatchingScreenState extends State<MatchingScreen> {
   @override
   void dispose() {
     _timer.cancel();
+    _shrinkController.dispose();
     _matchingSubscription?.cancel();
     _onlineUsersSubscription?.cancel();
     if (_callRequestId != null) {
@@ -296,11 +312,20 @@ class _MatchingScreenState extends State<MatchingScreen> {
     }
   }
 
-  void _handleMatchSuccess(CallMatch match) {
+  void _handleMatchSuccess(CallMatch match) async {
     if (!mounted) return;
     
     _timer.cancel();
     _matchingSubscription?.cancel();
+    
+    // シュリンクアニメーション開始
+    setState(() {
+      _isMatchFound = true;
+    });
+    
+    await _shrinkController.forward();
+    
+    if (!mounted) return;
     
     // AIマッチかどうかを判定
     final isAIMatch = match.partnerId.contains('ai_') || match.partnerId.contains('zundamon');
@@ -354,7 +379,7 @@ class _MatchingScreenState extends State<MatchingScreen> {
     }
   }
 
-  Color get _currentThemeColor => _themeColors[_selectedThemeIndex];
+  Color get _currentThemeColor => getAppTheme(_selectedThemeIndex).backgroundColor;
 
   @override
   Widget build(BuildContext context) {
@@ -378,13 +403,21 @@ class _MatchingScreenState extends State<MatchingScreen> {
                 color: _currentThemeColor,
               ),
             ),
-            // 背景の川のLottieアニメーション
+            // 背景の川のLottieアニメーション（シュリンクアニメーション付き）
             Positioned.fill(
-              child: Lottie.asset(
-                'aseets/animations/background_animation(river).json',
-                fit: BoxFit.cover,
-                repeat: true,
-                alignment: Alignment.center,
+              child: AnimatedBuilder(
+                animation: _shrinkAnimation,
+                builder: (context, child) {
+                  return Transform.scale(
+                    scale: _isMatchFound ? _shrinkAnimation.value : 1.0,
+                    child: Lottie.asset(
+                      'aseets/animations/background_animation(river).json',
+                      fit: BoxFit.cover,
+                      repeat: !_isMatchFound,
+                      alignment: Alignment.center,
+                    ),
+                  );
+                },
               ),
             ),
             // メインコンテンツ

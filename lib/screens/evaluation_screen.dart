@@ -7,21 +7,10 @@ import 'dart:io' show Platform;
 import '../services/rating_service.dart';
 import '../services/evaluation_service.dart';
 import '../services/user_profile_service.dart';
+import '../services/call_history_service.dart';
 import 'rematch_or_home_screen.dart';
 import 'partner_profile_screen.dart';
-
-// テーマ用データクラス
-class AppThemePalette {
-  final Color backgroundColor;
-  final Color barColor;
-  final Color callIconColor;
-
-  const AppThemePalette({
-    required this.backgroundColor,
-    required this.barColor,
-    required this.callIconColor,
-  });
-}
+import '../utils/theme_utils.dart';
 
 class EvaluationScreen extends StatefulWidget {
   final String callId;
@@ -49,44 +38,11 @@ class _EvaluationScreenState extends State<EvaluationScreen>
   final RatingService _ratingService = RatingService();
   final EvaluationService _evaluationService = EvaluationService();
   final UserProfileService _userProfileService = UserProfileService();
+  final CallHistoryService _callHistoryService = CallHistoryService();
 
   // 相手のアイコンとテーマ
   String? _selectedIconPath = 'aseets/icons/Woman 1.svg';
   int _selectedThemeIndex = 0;
-  
-  // テーマパレット定義
-  static const List<AppThemePalette> _appThemes = [
-    // 1. デフォルト
-    AppThemePalette(
-      backgroundColor: Color(0xFF5A64ED),
-      barColor: Color(0xFF979CDE),
-      callIconColor: Color(0xFF4CAF50),
-    ),
-    // 2. E6D283, EAC77A, F59A3E
-    AppThemePalette(
-      backgroundColor: Color(0xFFE6D283),
-      barColor: Color(0xFFEAC77A),
-      callIconColor: Color(0xFFF59A3E),
-    ),
-    // 3. A482E5, D7B3E8, D487E6
-    AppThemePalette(
-      backgroundColor: Color(0xFFA482E5),
-      barColor: Color(0xFFD7B3E8),
-      callIconColor: Color(0xFFD487E6),
-    ),
-    // 4. 83C8E6, B8D8E6, 618DAA
-    AppThemePalette(
-      backgroundColor: Color(0xFF83C8E6),
-      barColor: Color(0xFFB8D8E6),
-      callIconColor: Color(0xFF618DAA),
-    ),
-    // 5. F0941F, EF6024, 548AB6
-    AppThemePalette(
-      backgroundColor: Color(0xFFF0941F),
-      barColor: Color(0xFFEF6024),
-      callIconColor: Color(0xFF548AB6),
-    ),
-  ];
 
   @override
   void initState() {
@@ -113,7 +69,7 @@ class _EvaluationScreenState extends State<EvaluationScreen>
         // 相手のテーマインデックスを適用
         _selectedThemeIndex = partnerProfile.themeIndex ?? 0;
         // テーマインデックスが範囲外の場合はデフォルトに設定
-        if (_selectedThemeIndex >= _appThemes.length) {
+        if (_selectedThemeIndex >= themeCount) {
           _selectedThemeIndex = 0;
         }
       });
@@ -144,6 +100,16 @@ class _EvaluationScreenState extends State<EvaluationScreen>
         // 通常マッチ: 相手のレーティングを更新
         await _ratingService.updateRating(rating, widget.partnerId);
       }
+
+      // 通話履歴に評価を反映
+      await _callHistoryService.updateCallRating(
+        widget.callId,
+        rating,
+        true, // 自分の評価
+      );
+
+      // evaluationコレクションからの評価データを履歴に同期
+      await _callHistoryService.syncRatingsFromEvaluations();
 
       print('評価送信完了: $rating星');
 
@@ -176,11 +142,11 @@ class _EvaluationScreenState extends State<EvaluationScreen>
     }
   }
 
-  Color get _currentThemeColor => _appThemes[_selectedThemeIndex].backgroundColor;
+  Color get _currentThemeColor => getAppTheme(_selectedThemeIndex).backgroundColor;
 
   @override
   Widget build(BuildContext context) {
-    final currentTheme = _appThemes[_selectedThemeIndex];
+    final currentTheme = getAppTheme(_selectedThemeIndex);
     return Scaffold(
       backgroundColor: currentTheme.backgroundColor,
       body: Platform.isAndroid

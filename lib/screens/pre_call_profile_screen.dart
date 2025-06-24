@@ -59,14 +59,8 @@ class _PreCallProfileScreenState extends State<PreCallProfileScreen>
   // HomeScreen2のStateにテーマインデックスを追加
   int _selectedThemeIndex = 0;
 
-  // コメント候補リストを追加
-  final List<String> _randomComments = [
-    'マッチングしました！',
-    '相手のプロフィールを確認しています...',
-    'もうすぐ通話が始まります',
-    '楽しい会話をお楽しみください！',
-  ];
-  late String _selectedComment;
+  // ユーザーの一言コメント用
+  String _userComment = 'よろしくお願いします！';
 
   @override
   void initState() {
@@ -74,7 +68,6 @@ class _PreCallProfileScreenState extends State<PreCallProfileScreen>
     _initializeAnimations();
     _loadPartnerProfile();
     _loadMyProfile();
-    _selectedComment = (_randomComments..shuffle()).first;
   }
 
   void _initializeAnimations() {
@@ -187,6 +180,7 @@ class _PreCallProfileScreenState extends State<PreCallProfileScreen>
                 channelName: widget.match.channelName,
                 callId: widget.match.callId,
                 partnerId: widget.match.partnerId,
+                conversationTheme: widget.match.conversationTheme,
               ),
             ),
           );
@@ -260,6 +254,13 @@ class _PreCallProfileScreenState extends State<PreCallProfileScreen>
         setState(() {
           _myProfile = profile;
           _myIconPath = profile.iconPath ?? 'aseets/icons/Woman 1.svg';
+          // マッチング時の表示コメントは固定
+          _userComment = 'よろしくお願いします！';
+          // _userComment = profile.comment?.isNotEmpty == true 
+          //     ? (profile.comment!.length > 20 
+          //         ? profile.comment!.substring(0, 20) + '...' 
+          //         : profile.comment!) 
+          //     : 'よろしくお願いします！';
         });
       }
     } catch (e) {
@@ -348,8 +349,11 @@ class _PreCallProfileScreenState extends State<PreCallProfileScreen>
                   _buildProfileInfo(),
                   const SizedBox(height: 40),
                   
-                  // コメント
-                  _buildCommentSection(),
+                  // コメント（10px上に移動）
+                  Transform.translate(
+                    offset: const Offset(0, -10),
+                    child: _buildCommentSection(),
+                  ),
                 ],
               ),
             ),
@@ -532,7 +536,7 @@ class _PreCallProfileScreenState extends State<PreCallProfileScreen>
         border: Border.all(color: Colors.white.withOpacity(0.2)),
       ),
       child: Text(
-        _selectedComment,
+        _userComment,
         style: const TextStyle(
           color: Colors.white,
           fontSize: 16,

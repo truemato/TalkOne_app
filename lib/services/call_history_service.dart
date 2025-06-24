@@ -118,26 +118,103 @@ class CallHistoryService {
     });
   }
 
-  // 評価を後から更新
+  // 評価を後から更新（双方向対応）
   Future<void> updateCallRating(String callId, int rating, bool isMyRating) async {
     try {
       final user = _auth.currentUser;
       if (user == null) return;
 
-      final snapshot = await _firestore
+      // 自分の履歴を更新
+      final mySnapshot = await _firestore
           .collection('callHistories')
           .doc(user.uid)
           .collection('calls')
           .where('callId', isEqualTo: callId)
           .get();
 
-      for (var doc in snapshot.docs) {
+      for (var doc in mySnapshot.docs) {
         await doc.reference.update({
           isMyRating ? 'myRatingToPartner' : 'partnerRatingToMe': rating,
         });
       }
+
+      // 相手の履歴も更新（評価の逆側を更新）
+      if (isMyRating) {
+        // 自分が相手を評価した場合、相手の履歴に「相手からの評価」として記録
+        await _updatePartnerHistory(callId, rating, false);
+      } else {
+        // 相手が自分を評価した場合、相手の履歴に「自分の評価」として記録
+        await _updatePartnerHistory(callId, rating, true);
+      }
     } catch (e) {
       print('Error updating call rating: $e');
+    }
+  }
+
+  // 相手の履歴を更新（双方向同期）
+  Future<void> _updatePartnerHistory(String callId, int rating, bool isPartnerMyRating) async {
+    try {
+      // 全ユーザーの履歴から該当する通話を検索
+      final querySnapshot = await _firestore
+          .collectionGroup('calls')
+          .where('callId', isEqualTo: callId)
+          .get();
+
+      for (var doc in querySnapshot.docs) {
+        final data = doc.data();
+        final docUserId = doc.reference.parent.parent?.id;
+        
+        // 自分以外のユーザーの履歴を更新
+        if (docUserId != _auth.currentUser?.uid) {
+          await doc.reference.update({
+            isPartnerMyRating ? 'myRatingToPartner' : 'partnerRatingToMe': rating,
+          });
+        }
+      }
+    } catch (e) {
+      print('Error updating partner history: $e');
+    }
+  }
+
+  // 評価データの同期（evaluationコレクションから履歴を更新）
+  Future<void> syncRatingsFromEvaluations() async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) return;
+
+      // 自分が評価者の評価データを取得
+      final myEvaluationsSnapshot = await _firestore
+          .collection('evaluations')
+          .where('evaluatorId', isEqualTo: user.uid)
+          .get();
+
+      // 自分が評価された評価データを取得
+      final receivedEvaluationsSnapshot = await _firestore
+          .collection('evaluations')
+          .where('evaluatedUserId', isEqualTo: user.uid)
+          .get();
+
+      // 自分の評価を履歴に反映
+      for (var evalDoc in myEvaluationsSnapshot.docs) {
+        final data = evalDoc.data();
+        await updateCallRating(
+          data['callId'],
+          data['rating'],
+          true, // 自分の評価
+        );
+      }
+
+      // 受けた評価を履歴に反映
+      for (var evalDoc in receivedEvaluationsSnapshot.docs) {
+        final data = evalDoc.data();
+        await updateCallRating(
+          data['callId'],
+          data['rating'],
+          false, // 相手からの評価
+        );
+      }
+    } catch (e) {
+      print('Error syncing ratings: $e');
     }
   }
 }
