@@ -61,10 +61,8 @@ class AuthService {
       // Firebaseにサインイン
       final UserCredential userCredential = await _auth.signInWithCredential(credential);
       
-      // 新規ユーザーの場合、プロフィールを初期化
-      if (userCredential.additionalUserInfo?.isNewUser == true) {
-        await _initializeUserProfile(userCredential.user!);
-      }
+      // 既存プロフィールの確認（上書きを絶対に防ぐ）
+      await _ensureUserProfileExists(userCredential.user!);
 
       print('✅ Firebase認証成功: ${userCredential.user?.uid}');
       print('=== Google Sign In Debug End ===');
@@ -91,7 +89,7 @@ class AuthService {
       final UserCredential userCredential = await _auth.signInAnonymously();
       
       // 匿名ユーザーのプロフィールを初期化
-      await _initializeUserProfile(userCredential.user!);
+      await _ensureUserProfileExists(userCredential.user!);
       
       print('匿名認証成功: ${userCredential.user?.uid}');
       return userCredential;
@@ -157,17 +155,19 @@ class AuthService {
     }
   }
 
-  // ユーザープロフィールを初期化
-  Future<void> _initializeUserProfile(User user) async {
+  // 既存プロフィールの確認（絶対に上書きしない）
+  Future<void> _ensureUserProfileExists(User user) async {
     try {
       final userDoc = _firestore.collection('userProfiles').doc(user.uid);
       final docSnapshot = await userDoc.get();
       
       if (!docSnapshot.exists) {
-        // プロフィールは空の状態で初期化（ユーザーが手動で設定）
+        // 新規ユーザーのみ、空のプロフィールで初期化
+        print('新規ユーザー検出: ${user.uid}');
+        
         await userDoc.set({
           'nickname': null,
-          'email': user.email,
+          'email': null, // メールアドレスも保存しない
           'iconPath': 'aseets/icons/Woman 1.svg',
           'gender': null,
           'birthday': null,
@@ -179,20 +179,30 @@ class AuthService {
           'isAnonymous': user.isAnonymous,
         });
 
-        // レーティング初期化
-        await _firestore.collection('userRatings').doc(user.uid).set({
-          'rating': 1000, // 初期レーティング
-          'totalGames': 0,
-          'winStreak': 0,
-          'maxWinStreak': 0,
-          'lastGameAt': null,
-          'createdAt': FieldValue.serverTimestamp(),
-        });
+        // レーティング初期化（新規ユーザーのみ）
+        final ratingDoc = _firestore.collection('userRatings').doc(user.uid);
+        final ratingSnapshot = await ratingDoc.get();
+        
+        if (!ratingSnapshot.exists) {
+          await ratingDoc.set({
+            'rating': 1000, // 初期レーティング
+            'totalGames': 0,
+            'winStreak': 0,
+            'maxWinStreak': 0,
+            'lastGameAt': null,
+            'createdAt': FieldValue.serverTimestamp(),
+          });
+        }
 
-        print('ユーザープロフィール初期化完了: ${user.uid}');
+        print('新規ユーザープロフィール初期化完了: ${user.uid}');
+      } else {
+        // 既存ユーザーの場合は何もしない（絶対に上書きしない）
+        print('既存ユーザー検出: ${user.uid} - プロフィール保持');
+        final existingData = docSnapshot.data() as Map<String, dynamic>;
+        print('既存ニックネーム: ${existingData['nickname'] ?? '未設定'}');
       }
     } catch (e) {
-      print('プロフィール初期化エラー: $e');
+      print('プロフィール確認エラー: $e');
     }
   }
 
