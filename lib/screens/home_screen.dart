@@ -563,13 +563,110 @@ class _HomeScreenState extends State<HomeScreen>
           const SizedBox(height: 4),
           AnimatedBuilder(
             animation: _rateAnimation,
-            builder: (context, child) => Text(
-              '${_rateAnimation.value}',
+            builder: (context, child) => _buildMetallicRatingText(_rateAnimation.value),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  Widget _buildMetallicRatingText(int rating) {
+    double fontSize;
+    List<Color> gradientColors;
+    List<Color> shadowColors;
+    
+    if (rating >= 4000) {
+      // 金色 (4000以上)
+      fontSize = 44; // 38 + 3 + 3
+      gradientColors = [
+        const Color(0xFFFFD700), // ゴールド
+        const Color(0xFFFFA500), // オレンジゴールド
+        const Color(0xFFFFD700), // ゴールド
+        const Color(0xFFFFE55C), // ライトゴールド
+      ];
+      shadowColors = [
+        const Color(0xFFB8860B), // ダークゴールド
+        const Color(0xFF8B7355), // ブロンズ
+      ];
+    } else if (rating >= 3000) {
+      // 銀色 (3000以上)
+      fontSize = 41; // 38 + 1 + 2
+      gradientColors = [
+        const Color(0xFFC0C0C0), // シルバー
+        const Color(0xFFE5E5E5), // ライトシルバー
+        const Color(0xFFC0C0C0), // シルバー
+        const Color(0xFFD3D3D3), // ライトグレー
+      ];
+      shadowColors = [
+        const Color(0xFF808080), // ダークグレー
+        const Color(0xFF696969), // ディムグレー
+      ];
+    } else if (rating >= 2000) {
+      // 銅色 (2000以上)
+      fontSize = 39; // 38 + 1
+      gradientColors = [
+        const Color(0xFFB87333), // ブロンズ
+        const Color(0xFFCD7F32), // ライトブロンズ
+        const Color(0xFFB87333), // ブロンズ
+        const Color(0xFFD2691E), // チョコレート
+      ];
+      shadowColors = [
+        const Color(0xFF8B4513), // サドルブラウン
+        const Color(0xFF654321), // ダークブラウン
+      ];
+    } else {
+      // 通常 (2000未満)
+      fontSize = 38;
+      return Text(
+        '$rating',
+        style: GoogleFonts.notoSans(
+          fontSize: fontSize,
+          fontWeight: FontWeight.w700,
+          color: Colors.white,
+        ),
+      );
+    }
+    
+    return ShaderMask(
+      shaderCallback: (bounds) => LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: gradientColors,
+        stops: const [0.0, 0.3, 0.7, 1.0],
+      ).createShader(bounds),
+      child: Stack(
+        children: [
+          // シャドウレイヤー (奥行き効果)
+          Transform.translate(
+            offset: const Offset(2, 2),
+            child: Text(
+              '$rating',
               style: GoogleFonts.notoSans(
-                fontSize: 38,
+                fontSize: fontSize,
                 fontWeight: FontWeight.w700,
-                color: Colors.white,
+                color: shadowColors[1],
               ),
+            ),
+          ),
+          // ミドルシャドウ
+          Transform.translate(
+            offset: const Offset(1, 1),
+            child: Text(
+              '$rating',
+              style: GoogleFonts.notoSans(
+                fontSize: fontSize,
+                fontWeight: FontWeight.w700,
+                color: shadowColors[0],
+              ),
+            ),
+          ),
+          // メインテキスト
+          Text(
+            '$rating',
+            style: GoogleFonts.notoSans(
+              fontSize: fontSize,
+              fontWeight: FontWeight.w700,
+              color: Colors.white,
             ),
           ),
         ],

@@ -154,22 +154,36 @@ class CallHistoryService {
   // 相手の履歴を更新（双方向同期）
   Future<void> _updatePartnerHistory(String callId, int rating, bool isPartnerMyRating) async {
     try {
-      // 全ユーザーの履歴から該当する通話を検索
-      final querySnapshot = await _firestore
-          .collectionGroup('calls')
+      final user = _auth.currentUser;
+      if (user == null) return;
+      
+      // まず自分の履歴から相手のIDを取得
+      final mySnapshot = await _firestore
+          .collection('callHistories')
+          .doc(user.uid)
+          .collection('calls')
           .where('callId', isEqualTo: callId)
           .get();
-
-      for (var doc in querySnapshot.docs) {
-        final data = doc.data();
-        final docUserId = doc.reference.parent.parent?.id;
-        
-        // 自分以外のユーザーの履歴を更新
-        if (docUserId != _auth.currentUser?.uid) {
-          await doc.reference.update({
-            isPartnerMyRating ? 'myRatingToPartner' : 'partnerRatingToMe': rating,
-          });
-        }
+      
+      if (mySnapshot.docs.isEmpty) return;
+      
+      final myCallData = mySnapshot.docs.first.data();
+      final partnerId = myCallData['partnerId'];
+      
+      if (partnerId == null) return;
+      
+      // 相手の履歴を直接更新
+      final partnerSnapshot = await _firestore
+          .collection('callHistories')
+          .doc(partnerId)
+          .collection('calls')
+          .where('callId', isEqualTo: callId)
+          .get();
+      
+      for (var doc in partnerSnapshot.docs) {
+        await doc.reference.update({
+          isPartnerMyRating ? 'myRatingToPartner' : 'partnerRatingToMe': rating,
+        });
       }
     } catch (e) {
       print('Error updating partner history: $e');

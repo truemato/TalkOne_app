@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:io' show Platform;
 import '../services/user_profile_service.dart';
 import '../services/auth_service.dart';
+import '../utils/validation_util.dart';
 import 'login_screen.dart';
 
 // プロフィール設定画面（iOS風のUI）
@@ -69,17 +71,52 @@ class _ProfileSettingScreenState extends State<ProfileSettingScreen> {
   Future<void> _saveProfile() async {
     if (_isLoading) return;
     
+    // バリデーション
+    final nicknameValidation = ValidationUtil.validateNickname(_nicknameController.text);
+    if (!nicknameValidation.isValid) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(nicknameValidation.errorMessage!),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+    
+    final commentValidation = ValidationUtil.validateComment(_commentController.text);
+    if (!commentValidation.isValid) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(commentValidation.errorMessage!),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+    
+    final aiMemoryValidation = ValidationUtil.validateAiMemory(_aiMemoController.text);
+    if (!aiMemoryValidation.isValid) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(aiMemoryValidation.errorMessage!),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+    
     setState(() {
       _isLoading = true;
     });
 
     try {
+      // 入力値をサニタイズしてから保存
       await _userProfileService.updateProfile(
-        nickname: _nicknameController.text.trim().isEmpty ? null : _nicknameController.text.trim(),
+        nickname: _nicknameController.text.trim().isEmpty ? null : ValidationUtil.sanitizeInput(_nicknameController.text),
         gender: _selectedGender,
         birthday: _selectedDate,
-        comment: _commentController.text.trim().isEmpty ? null : _commentController.text.trim(),
-        aiMemory: _aiMemoController.text.trim().isEmpty ? null : _aiMemoController.text.trim(),
+        comment: _commentController.text.trim().isEmpty ? null : ValidationUtil.sanitizeInput(_commentController.text),
+        aiMemory: _aiMemoController.text.trim().isEmpty ? null : ValidationUtil.sanitizeInput(_aiMemoController.text),
       );
 
       if (mounted) {
@@ -177,6 +214,7 @@ class _ProfileSettingScreenState extends State<ProfileSettingScreen> {
                     controller: _nicknameController,
                     hintText: 'ニックネーム',
                     inputType: TextInputType.text,
+                    inputFormatters: ValidationUtil.getNicknameFormatters(),
                   ),
                   const SizedBox(height: 20),
                   // 性別（選択式の丸みを帯びた四角）
@@ -205,6 +243,7 @@ class _ProfileSettingScreenState extends State<ProfileSettingScreen> {
                     inputType: TextInputType.text,
                     maxLines: 1,
                     maxLength: 20,
+                    inputFormatters: ValidationUtil.getCommentFormatters(),
                   ),
                   const SizedBox(height: 20),
                   // AIに伝えたいこと（400文字制限）
@@ -214,6 +253,7 @@ class _ProfileSettingScreenState extends State<ProfileSettingScreen> {
                     inputType: TextInputType.multiline,
                     maxLines: 4,
                     maxLength: 400,
+                    inputFormatters: ValidationUtil.getAiMemoryFormatters(),
                   ),
                   const SizedBox(height: 40),
                   // 保存ボタン
@@ -560,6 +600,7 @@ class _ProfileInputField extends StatelessWidget {
   final TextInputType inputType;
   final int maxLines;
   final int? maxLength;
+  final List<TextInputFormatter>? inputFormatters;
   
   const _ProfileInputField({
     required this.controller,
@@ -567,6 +608,7 @@ class _ProfileInputField extends StatelessWidget {
     required this.inputType,
     this.maxLines = 1,
     this.maxLength,
+    this.inputFormatters,
   });
   
   @override
@@ -581,6 +623,7 @@ class _ProfileInputField extends StatelessWidget {
         keyboardType: inputType,
         maxLines: maxLines,
         maxLength: maxLength,
+        inputFormatters: inputFormatters,
         style: const TextStyle(color: Colors.black),
         decoration: InputDecoration(
           hintText: hintText,

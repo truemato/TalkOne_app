@@ -139,20 +139,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
             ),
             const SizedBox(height: 12),
             
-            // 相手からの評価
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  '相手からの評価:',
-                  style: GoogleFonts.notoSans(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                _buildStarRating(history.partnerRatingToMe),
-              ],
-            ),
             const SizedBox(height: 20),
             
             // 通話情報
@@ -431,7 +417,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       ),
                       const SizedBox(height: 4),
                       
-                      // 評価情報
+                      // 評価情報（自分の評価のみ）
                       Row(
                         children: [
                           Text(
@@ -442,15 +428,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
                             ),
                           ),
                           _buildStarRating(history.myRatingToPartner),
-                          const SizedBox(width: 12),
-                          Text(
-                            '相手の評価: ',
-                            style: GoogleFonts.notoSans(
-                              fontSize: 12,
-                              color: Colors.grey.shade600,
-                            ),
-                          ),
-                          _buildStarRating(history.partnerRatingToMe),
                         ],
                       ),
                     ],

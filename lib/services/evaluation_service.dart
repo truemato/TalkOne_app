@@ -3,11 +3,13 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'user_profile_service.dart';
+import 'call_history_service.dart';
 
 class EvaluationService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final String _userId = FirebaseAuth.instance.currentUser!.uid;
   final UserProfileService _userProfileService = UserProfileService();
+  final CallHistoryService _callHistoryService = CallHistoryService();
 
   // 評価を送信する
   Future<void> submitEvaluation({
@@ -30,6 +32,14 @@ class EvaluationService {
       });
 
       print('評価送信完了: $rating stars for $partnerId');
+      
+      // 双方の通話履歴を更新
+      // 1. 自分の履歴：自分が相手を評価
+      await _callHistoryService.updateCallRating(callId, rating, true);
+      
+      // 2. 相手の履歴：相手が自分に評価された
+      // CallHistoryServiceの_updatePartnerHistoryは既に処理されるので追加処理不要
+      
     } catch (e) {
       print('評価送信エラー: $e');
       rethrow;

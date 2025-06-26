@@ -68,6 +68,110 @@ class _RateCounterState extends State<RateCounter>
     super.dispose();
   }
 
+  Widget _buildMetallicRatingText(int rating) {
+    double fontSize;
+    List<Color> gradientColors;
+    List<Color> shadowColors;
+    
+    if (rating >= 4000) {
+      // 金色 (4000以上)
+      fontSize = 52; // 46 + 3 + 3
+      gradientColors = [
+        const Color(0xFFFFD700), // ゴールド
+        const Color(0xFFFFA500), // オレンジゴールド
+        const Color(0xFFFFD700), // ゴールド
+        const Color(0xFFFFE55C), // ライトゴールド
+      ];
+      shadowColors = [
+        const Color(0xFFB8860B), // ダークゴールド
+        const Color(0xFF8B7355), // ブロンズ
+      ];
+    } else if (rating >= 3000) {
+      // 銀色 (3000以上)
+      fontSize = 49; // 46 + 1 + 2
+      gradientColors = [
+        const Color(0xFFC0C0C0), // シルバー
+        const Color(0xFFE5E5E5), // ライトシルバー
+        const Color(0xFFC0C0C0), // シルバー
+        const Color(0xFFD3D3D3), // ライトグレー
+      ];
+      shadowColors = [
+        const Color(0xFF808080), // ダークグレー
+        const Color(0xFF696969), // ディムグレー
+      ];
+    } else if (rating >= 2000) {
+      // 銅色 (2000以上)
+      fontSize = 47; // 46 + 1
+      gradientColors = [
+        const Color(0xFFB87333), // ブロンズ
+        const Color(0xFFCD7F32), // ライトブロンズ
+        const Color(0xFFB87333), // ブロンズ
+        const Color(0xFFD2691E), // チョコレート
+      ];
+      shadowColors = [
+        const Color(0xFF8B4513), // サドルブラウン
+        const Color(0xFF654321), // ダークブラウン
+      ];
+    } else {
+      // 通常 (2000未満)
+      fontSize = 46;
+      return Text(
+        '$rating',
+        style: GoogleFonts.notoSans(
+          fontSize: fontSize,
+          fontWeight: FontWeight.w700,
+          color: const Color(0xFF1E1E1E),
+        ),
+      );
+    }
+    
+    return ShaderMask(
+      shaderCallback: (bounds) => LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: gradientColors,
+        stops: const [0.0, 0.3, 0.7, 1.0],
+      ).createShader(bounds),
+      child: Stack(
+        children: [
+          // シャドウレイヤー (奥行き効果)
+          Transform.translate(
+            offset: const Offset(2, 2),
+            child: Text(
+              '$rating',
+              style: GoogleFonts.notoSans(
+                fontSize: fontSize,
+                fontWeight: FontWeight.w700,
+                color: shadowColors[1],
+              ),
+            ),
+          ),
+          // ミドルシャドウ
+          Transform.translate(
+            offset: const Offset(1, 1),
+            child: Text(
+              '$rating',
+              style: GoogleFonts.notoSans(
+                fontSize: fontSize,
+                fontWeight: FontWeight.w700,
+                color: shadowColors[0],
+              ),
+            ),
+          ),
+          // メインテキスト
+          Text(
+            '$rating',
+            style: GoogleFonts.notoSans(
+              fontSize: fontSize,
+              fontWeight: FontWeight.w700,
+              color: const Color(0xFF1E1E1E),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -87,14 +191,7 @@ class _RateCounterState extends State<RateCounter>
           const SizedBox(height: 4),
           AnimatedBuilder(
             animation: _rateAnimation,
-            builder: (context, child) => Text(
-              '${_rateAnimation.value}',
-              style: GoogleFonts.notoSans(
-                fontSize: 46,
-                fontWeight: FontWeight.w700,
-                color: const Color(0xFF1E1E1E),
-              ),
-            ),
+            builder: (context, child) => _buildMetallicRatingText(_rateAnimation.value),
           ),
         ],
       ),
@@ -131,6 +228,11 @@ class _MatchingScreenState extends State<MatchingScreen>
   late Animation<double> _shrinkAnimation;
   bool _isMatchFound = false;
   
+  // プログレスバー用
+  late AnimationController _progressController;
+  late Animation<double> _progressAnimation;
+  late Timer _progressTimer;
+  
   // テーマインデックス
   int _selectedThemeIndex = 0;
   
@@ -160,6 +262,30 @@ class _MatchingScreenState extends State<MatchingScreen>
       curve: Curves.easeInBack,
     ));
     
+    // プログレスバーアニメーション初期化
+    _progressController = AnimationController(
+      duration: const Duration(seconds: 60),
+      vsync: this,
+    );
+    
+    _progressAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _progressController,
+      curve: Curves.linear,
+    ));
+    
+    // プログレスバー開始
+    _progressController.forward();
+    
+    // 60秒後にAI会話を開始するタイマー
+    _progressTimer = Timer(const Duration(seconds: 60), () {
+      if (!_isMatchFound && mounted) {
+        _startAIConversation();
+      }
+    });
+    
     _loadUserRating();
     _startOnlineUsersListener();
     _startMatching();
@@ -173,7 +299,9 @@ class _MatchingScreenState extends State<MatchingScreen>
   @override
   void dispose() {
     _timer.cancel();
+    _progressTimer.cancel();
     _shrinkController.dispose();
+    _progressController.dispose();
     _matchingSubscription?.cancel();
     _onlineUsersSubscription?.cancel();
     if (_callRequestId != null) {
@@ -316,6 +444,7 @@ class _MatchingScreenState extends State<MatchingScreen>
     if (!mounted) return;
     
     _timer.cancel();
+    _progressTimer.cancel();
     _matchingSubscription?.cancel();
     
     // シュリンクアニメーション開始
@@ -377,6 +506,27 @@ class _MatchingScreenState extends State<MatchingScreen>
     if (mounted) {
       Navigator.pop(context);
     }
+  }
+  
+  // AI会話を開始する関数
+  Future<void> _startAIConversation() async {
+    if (!mounted) return;
+    
+    _timer.cancel();
+    _progressTimer.cancel();
+    _matchingSubscription?.cancel();
+    
+    // Gemini AI会話画面に遷移
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AiPreCallScreen(
+          callId: 'gemini_chat_${DateTime.now().millisecondsSinceEpoch}',
+          channelName: 'gemini_channel',
+          isVideoCall: widget.isVideoCall,
+        ),
+      ),
+    );
   }
 
   Color get _currentThemeColor => getAppTheme(_selectedThemeIndex).backgroundColor;
@@ -482,6 +632,10 @@ class _MatchingScreenState extends State<MatchingScreen>
                         ),
                         const SizedBox(height: 12),
                       ],
+                      _buildProgressBar(),
+                      const SizedBox(height: 16),
+                      _buildAIConversationButton(),
+                      const SizedBox(height: 16),
                       _buildMatchingText(),
                       SizedBox(
                           height: contentHeight * 0.06), // マッチング中とキャンセルボタンの間（6%）
@@ -543,6 +697,58 @@ class _MatchingScreenState extends State<MatchingScreen>
           ),
         ],
       ],
+    );
+  }
+
+  Widget _buildProgressBar() {
+    return Container(
+      width: 300,
+      height: 8,
+      margin: const EdgeInsets.symmetric(horizontal: 20),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(4),
+        color: Colors.white.withOpacity(0.3),
+      ),
+      child: AnimatedBuilder(
+        animation: _progressAnimation,
+        builder: (context, child) {
+          return LinearProgressIndicator(
+            value: _progressAnimation.value,
+            backgroundColor: Colors.transparent,
+            valueColor: AlwaysStoppedAnimation<Color>(
+              Colors.white,
+            ),
+          );
+        },
+      ),
+    );
+  }
+  
+  Widget _buildAIConversationButton() {
+    return ElevatedButton(
+      onPressed: _startAIConversation,
+      style: ElevatedButton.styleFrom(
+        backgroundColor: const Color(0xFF4CAF50),
+        foregroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
+        elevation: 4,
+        shadowColor: Colors.black.withOpacity(0.2),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.smart_toy, size: 20),
+          const SizedBox(width: 8),
+          Text(
+            'AIと会話',
+            style: GoogleFonts.notoSans(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
