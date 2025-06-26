@@ -436,13 +436,27 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Widget _buildTitle() {
-    return Text(
-      'Talk One',
-      style: GoogleFonts.caveat(
-        fontSize: 60,
-        color: const Color(0xFF4E3B7A),
-        fontWeight: FontWeight.bold,
-      ),
+    return Column(
+      children: [
+        Text(
+          'Talk One',
+          style: GoogleFonts.caveat(
+            fontSize: 60,
+            color: const Color(0xFF4E3B7A),
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Ver 0.4',
+          style: GoogleFonts.notoSans(
+            color: const Color(0xFF4E3B7A).withOpacity(0.7),
+            fontSize: 16,
+            fontWeight: FontWeight.w300,
+            letterSpacing: 1,
+          ),
+        ),
+      ],
     );
   }
 

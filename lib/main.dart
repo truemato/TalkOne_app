@@ -5,9 +5,11 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'firebase_options.dart';
 import 'screens/home_screen.dart';
+import 'screens/login_screen.dart';
 import 'screens/permission_denied_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'utils/permission_util.dart';
+import 'services/auth_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -25,11 +27,6 @@ Future<void> main() async {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
-
-    // 匿名認証を自動で実行
-    if (FirebaseAuth.instance.currentUser == null) {
-      await FirebaseAuth.instance.signInAnonymously();
-    }
 
     // 初回起動時の権限処理
     print('main: 権限処理を開始します');
@@ -62,8 +59,39 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepOrange),
       ),
       home: permissionGranted
-          ? const HomeScreen() // 権限が許可されていればHomeScreenへ
+          ? AuthWrapper() // 権限が許可されていれば認証チェック
           : const PermissionDeniedScreen(), // 権限が拒否されていれば案内画面へ
+    );
+  }
+}
+
+class AuthWrapper extends StatelessWidget {
+  final AuthService _authService = AuthService();
+
+  AuthWrapper({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<User?>(
+      stream: _authService.authStateChanges,
+      builder: (context, snapshot) {
+        // 認証状態の読み込み中
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(
+              child: CircularProgressIndicator(),
+            ),
+          );
+        }
+        
+        // ユーザーがサインイン済みの場合
+        if (snapshot.hasData) {
+          return const HomeScreen();
+        }
+        
+        // ユーザーがサインインしていない場合
+        return const LoginScreen();
+      },
     );
   }
 }

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:io' show Platform;
 import '../services/user_profile_service.dart';
+import '../services/auth_service.dart';
+import 'login_screen.dart';
 
 // プロフィール設定画面（iOS風のUI）
 class ProfileSettingScreen extends StatefulWidget {
@@ -13,6 +15,7 @@ class ProfileSettingScreen extends StatefulWidget {
 
 class _ProfileSettingScreenState extends State<ProfileSettingScreen> {
   final UserProfileService _userProfileService = UserProfileService();
+  final AuthService _authService = AuthService();
   final TextEditingController _nicknameController = TextEditingController();
   final TextEditingController _commentController = TextEditingController();
   final TextEditingController _aiMemoController = TextEditingController();
@@ -156,6 +159,10 @@ class _ProfileSettingScreenState extends State<ProfileSettingScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // アカウント情報セクション
+                  _buildAccountSection(),
+                  const SizedBox(height: 32),
+                  
                   const Text(
                     'あなたのプロフィール',
                     style: TextStyle(
@@ -244,6 +251,305 @@ class _ProfileSettingScreenState extends State<ProfileSettingScreen> {
         ),
       ],
     );
+  }
+
+  // アカウント情報セクションを構築
+  Widget _buildAccountSection() {
+    final user = _authService.currentUser;
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'アカウント情報',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 16),
+        
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.9),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (_authService.isGoogleSignedIn) ...[
+                // Googleアカウントでサインイン済み
+                Row(
+                  children: [
+                    const Icon(Icons.account_circle, color: Colors.green, size: 24),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Googleアカウント',
+                            style: GoogleFonts.notoSans(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black87,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            user?.email ?? '',
+                            style: GoogleFonts.notoSans(
+                              fontSize: 14,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'AIとの会話履歴が機種変更時も引き継がれます',
+                  style: GoogleFonts.notoSans(
+                    fontSize: 12,
+                    color: Colors.green[700],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                _buildSignOutButton(),
+              ] else if (_authService.isAnonymous) ...[
+                // 匿名アカウント
+                Row(
+                  children: [
+                    const Icon(Icons.person_outline, color: Colors.orange, size: 24),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'ゲストアカウント',
+                            style: GoogleFonts.notoSans(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black87,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '機種変更時にデータが失われる可能性があります',
+                            style: GoogleFonts.notoSans(
+                              fontSize: 12,
+                              color: Colors.orange[700],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                _buildUpgradeToGoogleButton(),
+                const SizedBox(height: 8),
+                _buildSignOutButton(),
+              ] else ...[
+                // サインインしていない（通常は発生しない）
+                Text(
+                  'サインインが必要です',
+                  style: GoogleFonts.notoSans(
+                    fontSize: 16,
+                    color: Colors.red,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Googleアカウントにアップグレードボタン
+  Widget _buildUpgradeToGoogleButton() {
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton.icon(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.blue[600],
+          foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          padding: const EdgeInsets.symmetric(vertical: 12),
+        ),
+        onPressed: _isLoading ? null : _handleUpgradeToGoogle,
+        icon: const Icon(Icons.upgrade, size: 20),
+        label: Text(
+          'Googleアカウントにアップグレード',
+          style: GoogleFonts.notoSans(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+    );
+  }
+
+  // サインアウトボタン
+  Widget _buildSignOutButton() {
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: Colors.red[600],
+          side: BorderSide(color: Colors.red[600]!, width: 1),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          padding: const EdgeInsets.symmetric(vertical: 8),
+        ),
+        onPressed: _isLoading ? null : _handleSignOut,
+        icon: const Icon(Icons.logout, size: 18),
+        label: Text(
+          'サインアウト',
+          style: GoogleFonts.notoSans(
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Googleアカウントへのアップグレード処理
+  Future<void> _handleUpgradeToGoogle() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final userCredential = await _authService.linkAnonymousWithGoogle();
+      
+      if (userCredential != null && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Googleアカウントへのアップグレードが完了しました',
+              style: GoogleFonts.notoSans(color: Colors.white),
+            ),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+        setState(() {}); // UIを更新
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'アップグレードがキャンセルされました',
+              style: GoogleFonts.notoSans(color: Colors.white),
+            ),
+            backgroundColor: Colors.orange,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'アップグレードに失敗しました: $e',
+              style: GoogleFonts.notoSans(color: Colors.white),
+            ),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  // サインアウト処理
+  Future<void> _handleSignOut() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(
+          'サインアウト',
+          style: GoogleFonts.notoSans(fontWeight: FontWeight.bold),
+        ),
+        content: Text(
+          'サインアウトしますか？\n${_authService.isAnonymous ? 'ゲストアカウントのデータは失われます。' : ''}',
+          style: GoogleFonts.notoSans(),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(
+              'キャンセル',
+              style: GoogleFonts.notoSans(color: Colors.grey),
+            ),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(
+              'サインアウト',
+              style: GoogleFonts.notoSans(fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      setState(() {
+        _isLoading = true;
+      });
+
+      try {
+        await _authService.signOut();
+        if (mounted) {
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (context) => const LoginScreen()),
+            (route) => false,
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'サインアウトに失敗しました: $e',
+                style: GoogleFonts.notoSans(color: Colors.white),
+              ),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
+      }
+    }
   }
 }
 

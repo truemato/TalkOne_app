@@ -3,7 +3,7 @@ description: 1対1でキューを入れてマッチングできる、トーク�
 
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 
-version: 0.0.1+1
+version: 0.4.0+4
 
 environment:
   sdk: '>=3.4.0 <4.0.0'
@@ -15,8 +15,9 @@ dependencies:
   # Firebase & AI
   firebase_core: ^3.13.1
   firebase_ai: ^2.1.0
-  cloud_firestore: ^ 5.6.8
+  cloud_firestore: ^5.6.8
   firebase_auth: ^5.0.0
+  google_sign_in: ^6.2.1
   
   # UI & Design
   google_fonts: ^6.1.0
