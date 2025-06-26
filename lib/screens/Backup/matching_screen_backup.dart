@@ -287,7 +287,7 @@ class _MatchingScreenState extends State<MatchingScreen> {
 
               // 待機時間表示
               Text(
-                '待機時間: ${_waitingSeconds}秒',
+                '待機時間: $_waitingSeconds秒',
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                   color: Color(0xFF4E3B7A),

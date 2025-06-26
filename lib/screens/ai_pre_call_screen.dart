@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'dart:async';
-import 'voice_call_screen.dart';
 import 'zundamon_chat_screen.dart';
 
 /// AI（ずんだもん）専用プリコール画面

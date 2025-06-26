@@ -256,9 +256,7 @@ class ConversationDataService {
   
   /// セッションIDを生成
   String _generateSessionId() {
-    return DateTime.now().millisecondsSinceEpoch.toString() + 
-           '_' + 
-           FirebaseAuth.instance.currentUser!.uid.substring(0, 8);
+    return '${DateTime.now().millisecondsSinceEpoch}_${FirebaseAuth.instance.currentUser!.uid.substring(0, 8)}';
   }
   
   /// セッションのメッセージ数を更新
@@ -450,11 +448,11 @@ class ConversationStats {
     final seconds = totalDurationSeconds % 60;
     
     if (hours > 0) {
-      return '${hours}時間${minutes}分${seconds}秒';
+      return '$hours時間$minutes分$seconds秒';
     } else if (minutes > 0) {
-      return '${minutes}分${seconds}秒';
+      return '$minutes分$seconds秒';
     } else {
-      return '${seconds}秒';
+      return '$seconds秒';
     }
   }
   
@@ -464,9 +462,9 @@ class ConversationStats {
     final seconds = avgSeconds % 60;
     
     if (minutes > 0) {
-      return '${minutes}分${seconds}秒';
+      return '$minutes分$seconds秒';
     } else {
-      return '${seconds}秒';
+      return '$seconds秒';
     }
   }
 }

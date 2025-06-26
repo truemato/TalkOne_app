@@ -548,7 +548,7 @@ class _PreCallProfileScreenState extends State<PreCallProfileScreen>
   }
 
   Widget _buildFooter() {
-    return Container(
+    return SizedBox(
       width: 100,
       height: 90,
       child: Column(

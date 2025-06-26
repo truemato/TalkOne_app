@@ -112,7 +112,7 @@ class AgoraTokenService {
         }),
       );
       
-      print('通話終了記録完了: ${duration}秒');
+      print('通話終了記録完了: $duration秒');
     } catch (e) {
       print('通話終了記録エラー: $e');
     }

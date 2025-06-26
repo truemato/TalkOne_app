@@ -251,7 +251,7 @@ class RatingService {
       }
     } catch (e) {
       print('レーティングデータ保存エラー: $e');
-      throw e;
+      rethrow;
     }
   }
 
@@ -264,7 +264,7 @@ class RatingService {
       }, SetOptions(merge: true));
     } catch (e) {
       print('プロフィールレーティング更新エラー: $e');
-      throw e;
+      rethrow;
     }
   }
 

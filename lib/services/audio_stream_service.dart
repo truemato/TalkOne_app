@@ -76,7 +76,7 @@ class AudioStreamService {
     } catch (e) {
       print('録音開始エラー: $e');
       onError?.call('録音開始エラー: $e');
-      throw e;
+      rethrow;
     }
   }
   

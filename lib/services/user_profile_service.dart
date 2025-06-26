@@ -171,7 +171,7 @@ class UserProfileService {
       print('プロフィール一括更新成功');
     } catch (e) {
       print('プロフィール一括更新エラー: $e');
-      throw e;
+      rethrow;
     }
   }
 

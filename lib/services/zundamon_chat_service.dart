@@ -185,7 +185,7 @@ $userMemory
       if (Platform.isIOS) {
         print('iOSずんだもん初期化完了');
         Future.delayed(const Duration(milliseconds: 500), () async {
-          final welcomeMessage = 'ボク、ずんだもんなのだ！今日も元気いっぱいなのだ〜！何か話したいことあるのだ？';
+          const welcomeMessage = 'ボク、ずんだもんなのだ！今日も元気いっぱいなのだ〜！何か話したいことあるのだ？';
           onAIResponse?.call(welcomeMessage);
           await _speakWithVoicevox(welcomeMessage);
         });
@@ -299,7 +299,7 @@ $userMemory
         print('Android SpeechRecognizer 開始');
       } else {
         // iOS: SpeechToTextを使用
-        final isAvailable = await _speech.isAvailable;
+        final isAvailable = _speech.isAvailable;
         if (!isAvailable) {
           print('iOS音声認識が利用できません、再初期化します');
           final reInit = await _speech.initialize(
@@ -347,7 +347,7 @@ $userMemory
         print('Android SpeechRecognizer エラー: $e');
         if (_androidRetryCount < 3) {
           _androidRetryCount++;
-          print('Android音声認識再試行: ${_androidRetryCount}/3');
+          print('Android音声認識再試行: $_androidRetryCount/3');
           Future.delayed(const Duration(seconds: 3), () {
             if (_isInitialized && !_isListening && !_isProcessing) {
               startListening();

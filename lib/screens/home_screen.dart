@@ -33,6 +33,10 @@ class _HomeScreenState extends State<HomeScreen>
   final UserProfileService _userProfileService = UserProfileService();
   int _userRating = 1000;
   String? _currentUserId;
+  
+  // PageView用のコントローラーとページ管理
+  late PageController _pageController;
+  int _currentPageIndex = 1; // 中央のホーム画面を初期値
 
   // 背景アニメーションの状態管理
   int _currentBackgroundIndex = 0;
@@ -79,6 +83,9 @@ class _HomeScreenState extends State<HomeScreen>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _loadUserRating();
+    
+    // PageControllerの初期化
+    _pageController = PageController(initialPage: 1);
     
     _waveController = AnimationController(
       duration: const Duration(seconds: 2),
@@ -152,6 +159,7 @@ class _HomeScreenState extends State<HomeScreen>
     _waveController.dispose();
     _bubbleController.dispose();
     _rateController.dispose();
+    _pageController.dispose();
     super.dispose();
   }
 
@@ -187,80 +195,42 @@ class _HomeScreenState extends State<HomeScreen>
     final AppThemePalette theme = getAppTheme(_selectedThemeIndex);
     return Scaffold(
       backgroundColor: theme.backgroundColor,
-      body: Stack(
-        children: [
-          SafeArea(child: Center(child: _buildContent(context, theme))),
-          // ユーザーID表示（メニューバーの上）
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 60, // メニューバーの高さ分上に配置
-            child: _buildUserIdDisplay(),
-          ),
-          // 下部バー（iOS風統一レイアウト）
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: Platform.isAndroid
-                ? SafeArea(
-                    top: false,
-                    left: false,
-                    right: false,
-                    bottom: true,
-                    child: Container(
-                      height: 60,
-                      decoration: BoxDecoration(
-                        color: theme.barColor,
-                        border: Border(
-                          top: BorderSide(color: theme.barColor, width: 1),
-                          left: BorderSide(color: theme.barColor, width: 1),
-                          right: BorderSide(color: theme.barColor, width: 1),
-                        ),
-                        borderRadius: const BorderRadius.only(
-                          topLeft: Radius.circular(10),
-                          topRight: Radius.circular(10),
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          IconButton(
-                            icon: SvgPicture.asset('aseets/icons/ber_Icon.svg',
-                                width: 32, height: 32),
-                            onPressed: () {
-                              Navigator.of(context).push(_createHistoryRoute());
-                            },
-                          ),
-                          const SizedBox(width: 64),
-                          IconButton(
-                            icon: SvgPicture.asset('aseets/icons/bell.svg',
-                                width: 36, height: 36),
-                            onPressed: () {
-                              Navigator.of(context)
-                                  .push(_createNotificationRoute());
-                            },
-                          ),
-                          const SizedBox(width: 64),
-                          IconButton(
-                            icon: SvgPicture.asset('aseets/icons/Settings.svg',
-                                width: 29, height: 29),
-                            onPressed: () async {
-                              await Navigator.of(context)
-                                  .push(_createSettingsRoute());
-                              // 設定画面から戻った時にテーマを更新
-                              _loadUserRating();
-                            },
-                          ),
-                        ],
-                      ),
-                    ),
-                  )
-                : Container(
-                    decoration: BoxDecoration(
-                      color: theme.barColor, // 背景全体をメニューバーの色で埋める
-                    ),
-                    child: SafeArea(
+      body: GestureDetector(
+        onHorizontalDragEnd: (details) {
+          // 右から左へのスワイプ（負の速度）で設定画面
+          if (details.primaryVelocity! < -500) {
+            Navigator.of(context).push(_createSettingsRoute()).then((_) {
+              _loadUserRating(); // 設定画面から戻った時にテーマを更新
+            });
+          }
+          // 左から右へのスワイプ（正の速度）で履歴画面
+          else if (details.primaryVelocity! > 500) {
+            Navigator.of(context).push(_createHistoryRoute());
+          }
+        },
+        onVerticalDragEnd: (details) {
+          // 上から下へのスワイプ（正の速度）で通知画面
+          if (details.primaryVelocity! > 500) {
+            Navigator.of(context).push(_createNotificationRoute());
+          }
+        },
+        child: Stack(
+          children: [
+            SafeArea(child: Center(child: _buildContent(context, theme))),
+            // ユーザーID表示（メニューバーの上）
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 60, // メニューバーの高さ分上に配置
+              child: _buildUserIdDisplay(),
+            ),
+            // 下部バー（iOS風統一レイアウト）
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: Platform.isAndroid
+                  ? SafeArea(
                       top: false,
                       left: false,
                       right: false,
@@ -279,42 +249,100 @@ class _HomeScreenState extends State<HomeScreen>
                             topRight: Radius.circular(10),
                           ),
                         ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          IconButton(
-                            icon: SvgPicture.asset('aseets/icons/ber_Icon.svg',
-                                width: 32, height: 32),
-                            onPressed: () {
-                              Navigator.of(context).push(_createHistoryRoute());
-                            },
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            IconButton(
+                              icon: SvgPicture.asset('aseets/icons/ber_Icon.svg',
+                                  width: 32, height: 32),
+                              onPressed: () {
+                                Navigator.of(context).push(_createHistoryRoute());
+                              },
+                            ),
+                            const SizedBox(width: 64),
+                            IconButton(
+                              icon: SvgPicture.asset('aseets/icons/bell.svg',
+                                  width: 36, height: 36),
+                              onPressed: () {
+                                Navigator.of(context)
+                                    .push(_createNotificationRoute());
+                              },
+                            ),
+                            const SizedBox(width: 64),
+                            IconButton(
+                              icon: SvgPicture.asset('aseets/icons/Settings.svg',
+                                  width: 29, height: 29),
+                              onPressed: () async {
+                                await Navigator.of(context)
+                                    .push(_createSettingsRoute());
+                                // 設定画面から戻った時にテーマを更新
+                                _loadUserRating();
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  : Container(
+                      decoration: BoxDecoration(
+                        color: theme.barColor, // 背景全体をメニューバーの色で埋める
+                      ),
+                      child: SafeArea(
+                        top: false,
+                        left: false,
+                        right: false,
+                        bottom: true,
+                        child: Container(
+                          height: 60,
+                          decoration: BoxDecoration(
+                            color: theme.barColor,
+                            border: Border(
+                              top: BorderSide(color: theme.barColor, width: 1),
+                              left: BorderSide(color: theme.barColor, width: 1),
+                              right: BorderSide(color: theme.barColor, width: 1),
+                            ),
+                            borderRadius: const BorderRadius.only(
+                              topLeft: Radius.circular(10),
+                              topRight: Radius.circular(10),
+                            ),
                           ),
-                          const SizedBox(width: 64),
-                          IconButton(
-                            icon: SvgPicture.asset('aseets/icons/bell.svg',
-                                width: 36, height: 36),
-                            onPressed: () {
-                              Navigator.of(context)
-                                  .push(_createNotificationRoute());
-                            },
-                          ),
-                          const SizedBox(width: 64),
-                          IconButton(
-                            icon: SvgPicture.asset('aseets/icons/Settings.svg',
-                                width: 29, height: 29),
-                            onPressed: () async {
-                              await Navigator.of(context).push(_createSettingsRoute());
-                              // 設定画面から戻った時にテーマを更新
-                              _loadUserRating();
-                            },
-                          ),
-                        ],
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            IconButton(
+                              icon: SvgPicture.asset('aseets/icons/ber_Icon.svg',
+                                  width: 32, height: 32),
+                              onPressed: () {
+                                Navigator.of(context).push(_createHistoryRoute());
+                              },
+                            ),
+                            const SizedBox(width: 64),
+                            IconButton(
+                              icon: SvgPicture.asset('aseets/icons/bell.svg',
+                                  width: 36, height: 36),
+                              onPressed: () {
+                                Navigator.of(context)
+                                    .push(_createNotificationRoute());
+                              },
+                            ),
+                            const SizedBox(width: 64),
+                            IconButton(
+                              icon: SvgPicture.asset('aseets/icons/Settings.svg',
+                                  width: 29, height: 29),
+                              onPressed: () async {
+                                await Navigator.of(context).push(_createSettingsRoute());
+                                // 設定画面から戻った時にテーマを更新
+                                _loadUserRating();
+                              },
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
-                ),
-          ),
-        ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -341,9 +369,9 @@ class _HomeScreenState extends State<HomeScreen>
                   child: FloatingActionButton(
                     backgroundColor: const Color(0xFFAD98E1),
                     onPressed: _showIconSelectDialog,
+                    elevation: 2,
                     child:
                         const Icon(Icons.edit, color: Colors.white, size: 18),
-                    elevation: 2,
                   ),
                 ),
               ),
@@ -463,7 +491,7 @@ class _HomeScreenState extends State<HomeScreen>
   Widget _buildSpeechBubble() {
     return SlideTransition(
       position: _bubbleAnimation,
-      child: Container(
+      child: SizedBox(
         width: 220,
         height: 110,
         child: Stack(
@@ -546,7 +574,7 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Widget _buildRateCounter() {
-    return Container(
+    return SizedBox(
       width: 130, // 幅を100から130に拡大
       height: 90,
       child: Column(

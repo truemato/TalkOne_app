@@ -42,11 +42,11 @@ class CallMatchingService {
     bool shouldForceAI = forceAIMatch;
     if (userRating <= 850) {
       shouldForceAI = true;
-      print('レート${userRating}が850以下のため、AI（ずんだもん）との自動マッチングを実行します');
+      print('レート$userRatingが850以下のため、AI（ずんだもん）との自動マッチングを実行します');
     } else if (userRating > 880 && userRating <= 900) {
       // 850-880の間はAI練習中、880を超えたら人間とのマッチングに戻る
       shouldForceAI = false;
-      print('レート${userRating}が880を超えたため、人間とのマッチングに戻ります');
+      print('レート$userRatingが880を超えたため、人間とのマッチングに戻ります');
     }
     
     // 会話テーマをランダムに選択
@@ -266,7 +266,7 @@ class CallMatchingService {
       
       // クライアント側でレーティング範囲フィルタリング（999基準に調整）
       var ratingRange = 50.0;  // ±50ポイント
-      final maxRange = 150.0;  // 最大±150ポイント
+      const maxRange = 150.0;  // 最大±150ポイント
       
       while (ratingRange <= maxRange) {
         final minRating = myRating - ratingRange;
@@ -275,7 +275,7 @@ class CallMatchingService {
         // 自分以外で、レーティング範囲内、AI強制マッチング以外のユーザーを検索
         final availablePartners = waitingRequests.docs
             .where((doc) {
-              final data = doc.data() as Map<String, dynamic>;
+              final data = doc.data();
               final userRating = (data['userRating'] ?? 1000.0).toDouble();
               return doc['userId'] != _userId && 
                      userRating >= minRating &&

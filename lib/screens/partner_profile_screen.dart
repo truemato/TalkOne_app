@@ -1,14 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:io' show Platform;
 import '../services/user_profile_service.dart';
 import '../utils/theme_utils.dart';
 import '../services/rating_service.dart';
 import '../services/evaluation_service.dart';
-import 'rematch_or_home_screen.dart';
 
 class PartnerProfileScreen extends StatefulWidget {
   final String partnerId;

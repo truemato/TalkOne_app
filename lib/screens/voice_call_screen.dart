@@ -243,7 +243,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
       
       while (!success && retryCount < maxRetries && mounted) {
         if (retryCount > 0) {
-          print('VoiceCall: 初期化リトライ ${retryCount}/${maxRetries}');
+          print('VoiceCall: 初期化リトライ $retryCount/$maxRetries');
           await Future.delayed(Duration(milliseconds: 1000 * retryCount));
         }
         

@@ -318,7 +318,7 @@ class _CallMatchingScreenState extends State<CallMatchingScreen>
             ),
             const SizedBox(height: 16),
             Text(
-              '待機時間: ${_waitingSeconds}秒',
+              '待機時間: $_waitingSeconds秒',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                 color: Colors.orange,
               ),

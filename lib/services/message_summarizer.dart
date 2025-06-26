@@ -53,7 +53,7 @@ class MessageSummarizer {
     }
     
     // 古いメッセージを要約対象として抽出
-    final compressRatio = 0.3; // 古い30%を要約
+    const compressRatio = 0.3; // 古い30%を要約
     final compressCount = (messages.length * compressRatio).round();
     
     if (compressCount < 2) {

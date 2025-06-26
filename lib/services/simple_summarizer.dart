@@ -135,7 +135,7 @@ class SimpleSummarizer {
         summary = response.text ?? '';
         // 長すぎる場合はカット
         if (summary.length > 100) {
-          summary = summary.substring(0, 97) + '...';
+          summary = '${summary.substring(0, 97)}...';
         }
       } catch (e) {
         print('Gemini要約エラー: $e');

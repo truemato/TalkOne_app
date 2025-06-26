@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:io' show Platform;
 import '../services/user_profile_service.dart';
-import '../utils/validation_util.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});

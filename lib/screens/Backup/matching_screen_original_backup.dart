@@ -63,7 +63,7 @@ class _RateCounterState extends State<RateCounter>
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return SizedBox(
       width: 120,
       height: 110,
       child: Column(

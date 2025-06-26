@@ -14,9 +14,9 @@ class SplashScreen extends StatelessWidget {
     const baseHeight = 852.0;
 
     // 「TalkOne」テキストの縦位置（baseHeight に対する比率）
-    final talkOneTopRatio = 263.0 / baseHeight;
+    const talkOneTopRatio = 263.0 / baseHeight;
     // 本文テキストの縦位置（baseHeight に対する比率）
-    final bodyTextTopRatio = 513.0 / baseHeight;
+    const bodyTextTopRatio = 513.0 / baseHeight;
 
     // 文字の横幅制限用に、元コードで 304px ／ 393px ≒ 0.774 の比率を使う
     final bodyTextWidth = screenSize.width * (304.0 / baseWidth);
@@ -35,14 +35,14 @@ class SplashScreen extends StatelessWidget {
                 top: screenSize.height * talkOneTopRatio,
                 left: 0,
                 right: 0,
-                child: Center(
+                child: const Center(
                   child: Text(
                     'TalkOne',
                     textAlign: TextAlign.center,
                     softWrap: false,
                     overflow: TextOverflow.visible,
                     maxLines: 1,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: Color(0xFF6C6C6C),
                       fontSize: 64,
                       fontFamily: 'Caveat',
