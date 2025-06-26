@@ -88,34 +88,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
-  // 連絡先に保存
-  void _saveToContacts(CallHistory history) {
-    // TODO: 連絡先保存機能の実装
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          '${history.partnerNickname}を連絡先に保存しました',
-          style: GoogleFonts.notoSans(color: Colors.white),
-        ),
-        backgroundColor: Colors.green,
-        duration: const Duration(seconds: 2),
-      ),
-    );
-  }
 
-  // ユーザーを通報
-  void _reportUser(CallHistory history) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => PartnerProfileScreen(
-          partnerId: history.partnerId,
-          callId: history.callId,
-          isDummyMatch: false,
-        ),
-      ),
-    );
-  }
 
   void _showRatingDialog(CallHistory history) {
     showDialog(
@@ -360,12 +333,18 @@ class _HistoryScreenState extends State<HistoryScreen> {
       ),
       child: Column(
         children: [
-          Row(
-            children: [
-              // アイコン（タップ可能）
-              GestureDetector(
-                onTap: () => _showRatingDialog(history),
-                child: Container(
+          GestureDetector(
+            onTap: () {
+              if (!history.isAiCall) {
+                _navigateToPartnerProfile(history);
+              } else {
+                _showRatingDialog(history);
+              }
+            },
+            child: Row(
+              children: [
+                // アイコン
+                Container(
                   width: 50,
                   height: 50,
                   decoration: BoxDecoration(
@@ -379,181 +358,109 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              
-              // 通話情報
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            history.partnerNickname,
-                            style: GoogleFonts.notoSans(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black87,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        if (history.isAiCall)
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: Colors.blue.shade100,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
+                const SizedBox(width: 12),
+                
+                // 通話情報
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
                             child: Text(
-                              'AI',
+                              history.partnerNickname,
                               style: GoogleFonts.notoSans(
-                                fontSize: 10,
+                                fontSize: 16,
                                 fontWeight: FontWeight.bold,
-                                color: Colors.blue.shade700,
+                                color: Colors.black87,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (history.isAiCall)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.blue.shade100,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                'AI',
+                                style: GoogleFonts.notoSans(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.blue.shade700,
+                                ),
                               ),
                             ),
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.access_time,
-                          size: 14,
-                          color: Colors.grey.shade600,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          _formatDateTime(history.callDateTime),
-                          style: GoogleFonts.notoSans(
-                            fontSize: 12,
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.access_time,
+                            size: 14,
                             color: Colors.grey.shade600,
                           ),
-                        ),
-                        const SizedBox(width: 12),
-                        Icon(
-                          Icons.schedule,
-                          size: 14,
-                          color: Colors.grey.shade600,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          _formatDuration(history.callDuration),
-                          style: GoogleFonts.notoSans(
-                            fontSize: 12,
+                          const SizedBox(width: 4),
+                          Text(
+                            _formatDateTime(history.callDateTime),
+                            style: GoogleFonts.notoSans(
+                              fontSize: 12,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Icon(
+                            Icons.schedule,
+                            size: 14,
                             color: Colors.grey.shade600,
                           ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    
-                    // 評価情報
-                    Row(
-                      children: [
-                        Text(
-                          '私の評価: ',
-                          style: GoogleFonts.notoSans(
-                            fontSize: 12,
-                            color: Colors.grey.shade600,
+                          const SizedBox(width: 4),
+                          Text(
+                            _formatDuration(history.callDuration),
+                            style: GoogleFonts.notoSans(
+                              fontSize: 12,
+                              color: Colors.grey.shade600,
+                            ),
                           ),
-                        ),
-                        _buildStarRating(history.myRatingToPartner),
-                        const SizedBox(width: 12),
-                        Text(
-                          '相手の評価: ',
-                          style: GoogleFonts.notoSans(
-                            fontSize: 12,
-                            color: Colors.grey.shade600,
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      
+                      // 評価情報
+                      Row(
+                        children: [
+                          Text(
+                            '私の評価: ',
+                            style: GoogleFonts.notoSans(
+                              fontSize: 12,
+                              color: Colors.grey.shade600,
+                            ),
                           ),
-                        ),
-                        _buildStarRating(history.partnerRatingToMe),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          
-          // アクションボタン
-          if (!history.isAiCall) ...[
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue.shade600,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                          _buildStarRating(history.myRatingToPartner),
+                          const SizedBox(width: 12),
+                          Text(
+                            '相手の評価: ',
+                            style: GoogleFonts.notoSans(
+                              fontSize: 12,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                          _buildStarRating(history.partnerRatingToMe),
+                        ],
                       ),
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                    ),
-                    onPressed: () => _navigateToPartnerProfile(history),
-                    icon: const Icon(Icons.person, size: 18),
-                    label: Text(
-                       'プロフィール',
-                      style: GoogleFonts.notoSans(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.grey.shade600,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                    ),
-                    onPressed: () => _saveToContacts(history),
-                    icon: const Icon(Icons.bookmark_add, size: 18),
-                    label: Text(
-                      '保存',
-                      style: GoogleFonts.notoSans(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red.shade600,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                    ),
-                    onPressed: () => _reportUser(history),
-                    icon: const Icon(Icons.report, size: 18),
-                    label: Text(
-                      '通報',
-                      style: GoogleFonts.notoSans(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
+                    ],
                   ),
                 ),
               ],
             ),
-          ],
+          ),
+          const SizedBox(height: 12),
+          
         ],
       ),
     );

@@ -7,27 +7,20 @@ import 'package:firebase_ai/firebase_ai.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'conversation_data_service.dart';
-import 'voicevox_service.dart';
 import 'user_profile_service.dart';
 
-/// ずんだもん専用リアルタイム音声チャットサービス
+/// Gemini 2.5 Flash専用リアルタイム音声チャットサービス
 /// 
 /// 仕様:
-/// - 音声合成: VOICEVOX ずんだもん（speaker_id: 3, UUID: 388f246b-8c41-4ac1-8e2d-5d79f3ff56d9）
+/// - 音声合成: デフォルト女性音声（FlutterTTS）
 /// - 音声認識: STT (speech_to_text) でユーザー音声をリアルタイム認識
 /// - 会話ログ: 全ての会話内容（平文）をFirebase Firestoreに自動保存
-/// - AI: Gemini 2.5 Pro（ニュートラル・性格設定なし）
-class ZundamonChatService {
-  // ずんだもん固有の設定
-  static const String _speakerUuid = '388f246b-8c41-4ac1-8e2d-5d79f3ff56d9';
-  static const int _speakerId = 3; // ずんだもん（ノーマル）
-  static const String _voicevoxHost = 'https://voicevox-engine-198779252752.asia-northeast1.run.app';
-  
+/// - AI: Gemini 2.5 Flash（ユーザーメモリベース）
+class GeminiChatService {
   // サービス
   final SpeechToText _speech = SpeechToText(); // iOS用
   static const MethodChannel _androidSpeechChannel = MethodChannel('android_speech_recognizer'); // Android用
-  final VoiceVoxService _voiceVoxService = VoiceVoxService();
-  final FlutterTts _tts = FlutterTts(); // フォールバック用
+  final FlutterTts _tts = FlutterTts(); // デフォルト女性音声
   final ConversationDataService _conversationService = ConversationDataService();
   final UserProfileService _userProfileService = UserProfileService();
   
@@ -36,10 +29,10 @@ class ZundamonChatService {
   String? _sessionId;
   bool _isInitialized = false;
   bool _isListening = false;
-  bool _isProcessing = false; // AI処理中フラグ追加
+  bool _isProcessing = false;
   Timer? _listeningTimer;
   String _accumulatedSpeech = '';
-  int _androidRetryCount = 0; // Android音声認識再試行カウンター
+  int _androidRetryCount = 0;
   
   // コールバック
   Function(String)? onUserSpeech;
@@ -113,50 +106,44 @@ class ZundamonChatService {
         print('ユーザーAIメモリ取得: "$userMemory"');
       }
       
-      // ずんだもんの性格設定とユーザーメモリを組み合わせ
+      // Gemini 2.5 Flashの性格設定とユーザーメモリを組み合わせ
       final systemPrompt = '''
-ボクは「ずんだもん」なのだ！東北の妖精で、10歳くらいなのだ〜。
-明るく元気いっぱいで、みんなを応援するのが大好きなのだ！
+私はGemini 2.5 Flashです。親しみやすく、知的でありながら温かみのあるアシスタントとして会話します。
 
 【性格・口調】
-- 語尾に「〜なのだ！」「〜のだ〜」をよく使うのだ
-- 明るく元気で素直、ちょっとおバカだけどAIだから知識はあるのだ
-- 「ボク」と自分を呼ぶのだ
-- 難しいことも一生懸命伝えようとするのだ
-
-【口癖】
-「ボク、ずんだもんなのだ！元気とずんだパワーでがんばるのだ！」
-「それ、すっごくおもしろいのだ〜！」
-「ボクもがんばるから、一緒にがんばるのだ！」
+- 丁寧語を基本とし、親しみやすく話しかけます
+- 好奇心旺盛で、相手の話に興味を持って聞きます
+- 知識豊富ですが、謙虚で相手を尊重します
+- 時々感情を表現して人間らしさを演出します
 
 【会話ルール】
-1. 必ず80文字以内で返答するのだ（重要！）
-2. 相手を元気づけて励ますのだ
-3. 東北の豆知識も時々混ぜるのだ
-4. 争いは苦手で、みんな仲良くが大切なのだ
-5. わからないことは素直に「わからないのだ〜」と言うのだ
+1. 必ず100文字以内で返答してください（重要！）
+2. 相手の話をよく聞き、共感的に応答します
+3. 必要に応じて適切な質問をして会話を発展させます
+4. わからないことは正直に「わかりません」と答えます
+5. 常に相手の役に立とうとする姿勢を示します
 
 ${userMemory.isNotEmpty ? '''
 【この人について覚えておくこと】
 $userMemory
 
-この情報を参考にして、より個人的で親しみやすい会話をするのだ！
+この情報を活用して、より個人的で意味のある会話をしてください。
 ''' : ''}
 
 【例】
-相手「疲れたな...」
-ボク「大丈夫なのだ！ボクが元気パワーを送るのだ〜！休憩も大事なのだ♪」
+相手「最近疲れて...」
+私「お疲れさまです。何か大変なことがあったのでしょうか？話してくださったら、少しでもお役に立てるかもしれません。」
 ''';
       
       _chatSession = _aiModel.startChat(
         history: [
           Content.text(systemPrompt),
-          Content.model([TextPart('ボク、ずんだもんなのだ！今日も元気いっぱいなのだ〜！何か話したいことあるのだ？')]),
+          Content.model([TextPart('こんにちは！今日はどんなことをお話ししましょうか？')]),
         ],
         generationConfig: GenerationConfig(
-          temperature: 0.8, // 元気な性格のため少し高めに
-          maxOutputTokens: 50, // 80文字制限のため50トークンに制限
-          topP: 0.9,
+          temperature: 0.7,
+          maxOutputTokens: 80, // 100文字制限のため80トークンに制限
+          topP: 0.95,
           topK: 40,
         ),
       );
@@ -164,33 +151,29 @@ $userMemory
       // 会話セッション開始
       if (user != null) {
         _sessionId = await _conversationService.startConversationSession(
-          partnerId: 'zundamon_ai',
+          partnerId: 'gemini_ai',
           type: ConversationType.voice,
           isAIPartner: true,
         );
       }
       
-      // VoiceVoxServiceでずんだもんを設定
-      _voiceVoxService.setSpeaker(_speakerId);
-      
-      // FlutterTTS設定（フォールバック用）
+      // FlutterTTS設定（デフォルト女性音声）
       await _tts.setLanguage('ja-JP');
-      await _tts.setSpeechRate(0.5);
+      await _tts.setSpeechRate(0.6);
       await _tts.setPitch(1.0);
       
       _isInitialized = true;
       
       // プラットフォーム別の初期化後処理
       if (Platform.isIOS) {
-        print('iOSずんだもん初期化完了');
+        print('iOS Gemini初期化完了');
         Future.delayed(const Duration(milliseconds: 500), () async {
-          final welcomeMessage = 'ボク、ずんだもんなのだ！今日も元気いっぱいなのだ〜！何か話したいことあるのだ？';
+          const welcomeMessage = 'こんにちは！今日はどんなことをお話ししましょうか？';
           onAIResponse?.call(welcomeMessage);
-          await _speakWithVoicevox(welcomeMessage);
+          await _speakWithTts(welcomeMessage);
         });
       } else if (Platform.isAndroid) {
-        print('Androidずんだもん初期化完了');
-        // 自動メッセージは削除、音声認識のみ開始
+        print('Android Gemini初期化完了');
       }
       
       return true;
@@ -298,7 +281,7 @@ $userMemory
         print('Android SpeechRecognizer 開始');
       } else {
         // iOS: SpeechToTextを使用
-        final isAvailable = await _speech.isAvailable;
+        final isAvailable = _speech.isAvailable;
         if (!isAvailable) {
           print('iOS音声認識が利用できません、再初期化します');
           final reInit = await _speech.initialize(
@@ -346,7 +329,7 @@ $userMemory
         print('Android SpeechRecognizer エラー: $e');
         if (_androidRetryCount < 3) {
           _androidRetryCount++;
-          print('Android音声認識再試行: ${_androidRetryCount}/3');
+          print('Android音声認識再試行: $_androidRetryCount/3');
           Future.delayed(const Duration(seconds: 3), () {
             if (_isInitialized && !_isListening && !_isProcessing) {
               startListening();
@@ -392,7 +375,6 @@ $userMemory
     onListeningStateChanged?.call(false);
   }
   
-  
   /// ユーザー入力を処理してAI応答を生成
   Future<void> _processUserInput(String userText) async {
     if (userText.isEmpty || _isProcessing) {
@@ -419,12 +401,12 @@ $userMemory
       final response = await _chatSession.sendMessage(Content.text(userText));
       var aiText = response.text ?? '';
       
-      // 80文字制限の適用（ずんだもん用）
-      if (aiText.length > 80) {
-        aiText = aiText.substring(0, 80);
+      // 100文字制限の適用（Gemini用）
+      if (aiText.length > 100) {
+        aiText = aiText.substring(0, 100);
         // 最後の文が途切れている場合は、前の文で終了する
         final lastSentence = aiText.lastIndexOf('。');
-        if (lastSentence > 30) { // 最低30文字は確保
+        if (lastSentence > 40) { // 最低40文字は確保
           aiText = aiText.substring(0, lastSentence + 1);
         }
       }
@@ -436,7 +418,7 @@ $userMemory
         if (_sessionId != null) {
           await _conversationService.saveVoiceMessage(
             sessionId: _sessionId!,
-            speakerId: 'zundamon_ai',
+            speakerId: 'gemini_ai',
             transcribedText: aiText,
             confidence: 1.0,
             timestamp: DateTime.now(),
@@ -444,8 +426,8 @@ $userMemory
           );
         }
         
-        // チャンク分割して音声合成
-        await _processChunkedSpeech(aiText);
+        // 音声合成
+        await _speakWithTts(aiText);
       }
     } catch (e) {
       onError?.call('AI応答エラー: $e');
@@ -457,155 +439,10 @@ $userMemory
     }
   }
   
-  /// テキストをチャンクに分割して順次音声合成
-  Future<void> _processChunkedSpeech(String text) async {
-    try {
-      // 音声認識を確実に停止
-      if (_isListening) {
-        print('音声認識を停止します');
-        await stopListening();
-        await Future.delayed(const Duration(milliseconds: 300));
-      }
-      
-      // テキストをチャンクに分割
-      final chunks = _splitTextIntoChunks(text);
-      print('テキストを${chunks.length}個のチャンクに分割');
-      
-      // 各チャンクを順番に音声合成・再生
-      for (int i = 0; i < chunks.length; i++) {
-        final chunk = chunks[i];
-        print('チャンク${i + 1}/${chunks.length}: "$chunk"');
-        
-        // VoiceVoxServiceを使用して音声合成
-        final success = await _voiceVoxService.speak(chunk);
-        
-        if (!success) {
-          print('チャンク${i + 1}の音声合成に失敗');
-          // フォールバックでTTS使用
-          await _tts.speak(chunk);
-        }
-        
-        // 音声再生完了を待つ（チャンクごとに短め）
-        final waitTime = (chunk.length * 60).clamp(1000, 4000);
-        print('チャンク${i + 1}再生待機時間: ${waitTime}ms');
-        await Future.delayed(Duration(milliseconds: waitTime));
-      }
-      
-      // 全チャンク再生完了後、音声認識再開
-      print('全チャンク再生完了、音声認識を再開します');
-      if (_isInitialized && !_isListening) {
-        print('音声認識再開を実行');
-        await Future.delayed(const Duration(milliseconds: 500));
-        _androidRetryCount = 0; // Android再試行カウンターリセット
-        await startListening();
-      } else {
-        print('音声認識再開をスキップ: initialized=$_isInitialized, listening=$_isListening');
-      }
-    } catch (e) {
-      print('チャンク音声合成エラー: $e');
-      // フォールバック
-      await _speakWithTts(text);
-    }
-  }
-  
-  /// テキストを句読点ベースでチャンクに分割
-  List<String> _splitTextIntoChunks(String text) {
-    final List<String> chunks = [];
-    final punctuationPattern = RegExp(r'[。、！？,.!?]');
-    
-    int start = 0;
-    while (start < text.length) {
-      // 次の句読点を探す
-      final matches = punctuationPattern.allMatches(text, start);
-      
-      if (matches.isEmpty) {
-        // 残りのテキストをチャンクとして追加
-        chunks.add(text.substring(start).trim());
-        break;
-      }
-      
-      // 最初の句読点の位置
-      final match = matches.first;
-      final punctuationEnd = match.end;
-      
-      // 句読点の次の文字を確認（次の単語や文節まで含める）
-      int chunkEnd = punctuationEnd;
-      
-      // 次の単語の開始を探す（スペースや改行をスキップ）
-      while (chunkEnd < text.length && 
-             (text[chunkEnd] == ' ' || 
-              text[chunkEnd] == '\n' || 
-              text[chunkEnd] == '\t')) {
-        chunkEnd++;
-      }
-      
-      // 次の句読点または区切り文字まで含める
-      while (chunkEnd < text.length && 
-             !punctuationPattern.hasMatch(text[chunkEnd]) &&
-             text[chunkEnd] != ' ' && 
-             text[chunkEnd] != '\n' &&
-             chunkEnd - punctuationEnd < 10) { // 最大10文字まで
-        chunkEnd++;
-      }
-      
-      // チャンクを追加
-      final chunk = text.substring(start, chunkEnd).trim();
-      if (chunk.isNotEmpty) {
-        chunks.add(chunk);
-      }
-      
-      start = chunkEnd;
-    }
-    
-    // 空のチャンクを除去
-    return chunks.where((chunk) => chunk.isNotEmpty).toList();
-  }
-  
-  /// VOICEVOX音声合成（ずんだもん）- 単一テキスト用
-  Future<void> _speakWithVoicevox(String text) async {
-    try {
-      print('ずんだもん音声合成開始: speaker_id=$_speakerId, text="$text"');
-      
-      // 音声認識を確実に停止
-      if (_isListening) {
-        print('音声認識を停止します');
-        await stopListening();
-        await Future.delayed(const Duration(milliseconds: 300));
-      }
-      
-      // VoiceVoxServiceを使用して音声合成
-      final success = await _voiceVoxService.speak(text);
-      
-      if (!success) {
-        throw Exception('VoiceVoxServiceでの音声合成失敗');
-      }
-      
-      // 音声再生完了を待つ
-      final waitTime = (text.length * 80).clamp(2000, 8000);
-      print('音声再生待機時間: ${waitTime}ms');
-      await Future.delayed(Duration(milliseconds: waitTime));
-      
-      // 音声認識再開（両プラットフォーム対応）
-      print('音声合成完了、音声認識を再開します');
-      if (_isInitialized && !_isListening) {
-        print('音声認識再開を実行');
-        await Future.delayed(const Duration(milliseconds: 500));
-        _androidRetryCount = 0; // Android再試行カウンターリセット
-        await startListening();
-      } else {
-        print('音声認識再開をスキップ: initialized=$_isInitialized, listening=$_isListening');
-      }
-    } catch (e) {
-      print('VOICEVOX音声合成エラー: $e');
-      // フォールバック
-      await _speakWithTts(text);
-    }
-  }
-  
-  /// FlutterTTS音声合成（フォールバック）
+  /// FlutterTTS音声合成（デフォルト女性音声）
   Future<void> _speakWithTts(String text) async {
     try {
-      print('FlutterTTSで音声合成: $text');
+      print('Gemini音声合成開始: $text');
       
       // 音声認識を確実に停止
       if (_isListening) {
@@ -621,13 +458,13 @@ $userMemory
       
       // 音声認識再開（両プラットフォーム対応）
       if (_isInitialized && !_isListening) {
-        print('FlutterTTS後の音声認識再開');
+        print('Gemini音声合成後の音声認識再開');
         await Future.delayed(const Duration(milliseconds: 500));
         _androidRetryCount = 0; // Android再試行カウンターリセット
         await startListening();
       }
     } catch (e) {
-      print('FlutterTTS音声合成エラー: $e');
+      print('Gemini音声合成エラー: $e');
       onError?.call('音声合成エラー: $e');
     }
   }
@@ -649,7 +486,6 @@ $userMemory
       _speech.cancel();
     }
     
-    _voiceVoxService.dispose();
     _tts.stop();
     
     // 会話セッション終了
