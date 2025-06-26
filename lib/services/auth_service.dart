@@ -164,16 +164,15 @@ class AuthService {
       final docSnapshot = await userDoc.get();
       
       if (!docSnapshot.exists) {
-        // Googleアカウントの場合は表示名とメールを使用
-        final nickname = user.displayName ?? 'ユーザー${user.uid.substring(0, 6)}';
-        
+        // プロフィールは空の状態で初期化（ユーザーが手動で設定）
         await userDoc.set({
-          'nickname': nickname,
+          'nickname': null,
           'email': user.email,
           'iconPath': 'aseets/icons/Woman 1.svg',
-          'gender': '回答しない',
-          'comment': 'よろしくお願いします！',
-          'aiMemory': '',
+          'gender': null,
+          'birthday': null,
+          'comment': null,
+          'aiMemory': null,
           'themeIndex': 0,
           'createdAt': FieldValue.serverTimestamp(),
           'lastUpdated': FieldValue.serverTimestamp(),
