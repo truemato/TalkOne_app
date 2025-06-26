@@ -23,6 +23,7 @@ class PermissionUtil {
       Permission.camera,
       Permission.microphone,
       Permission.speech,  // iOS音声認識用
+      Permission.bluetoothConnect, // Android 12+ Bluetooth権限
       // Permission.notification, // ← 通知も必要なら追加
     ].request();
     
@@ -42,6 +43,7 @@ class PermissionUtil {
     statuses[Permission.camera] = await Permission.camera.status;
     statuses[Permission.microphone] = await Permission.microphone.status;
     statuses[Permission.speech] = await Permission.speech.status;
+    statuses[Permission.bluetoothConnect] = await Permission.bluetoothConnect.status;
     return statuses;
   }
   
@@ -49,6 +51,35 @@ class PermissionUtil {
   static Future<bool> isPermissionGranted(Permission permission) async {
     final status = await permission.status;
     return status.isGranted;
+  }
+  
+  /// 音声認識権限を確認・リクエスト
+  static Future<bool> requestSpeechRecognitionPermission() async {
+    final microphoneStatus = await Permission.microphone.status;
+    final speechStatus = await Permission.speech.status;
+    
+    print('PermissionUtil: 音声認識権限確認 - マイク: $microphoneStatus, 音声認識: $speechStatus');
+    
+    if (!microphoneStatus.isGranted) {
+      print('PermissionUtil: マイク権限をリクエストします');
+      final newStatus = await Permission.microphone.request();
+      if (!newStatus.isGranted) {
+        print('PermissionUtil: マイク権限が拒否されました');
+        return false;
+      }
+    }
+    
+    if (!speechStatus.isGranted) {
+      print('PermissionUtil: 音声認識権限をリクエストします');
+      final newStatus = await Permission.speech.request();
+      if (!newStatus.isGranted) {
+        print('PermissionUtil: 音声認識権限が拒否されました');
+        return false;
+      }
+    }
+    
+    print('PermissionUtil: 音声認識権限OK');
+    return true;
   }
   
   /// デバッグ用：初回起動フラグをリセット
