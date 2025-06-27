@@ -1278,6 +1278,11 @@ PODS:
   - firebase_core (3.14.0):
     - Firebase/CoreOnly (= 11.13.0)
     - Flutter
+  - FirebaseAI (11.13.0):
+    - FirebaseAppCheckInterop (~> 11.4)
+    - FirebaseAuthInterop (~> 11.4)
+    - FirebaseCore (~> 11.13.0)
+    - FirebaseCoreExtension (~> 11.13.0)
   - FirebaseAppCheck (11.13.0):
     - AppCheckCore (~> 11.0)
     - FirebaseAppCheckInterop (~> 11.0)
@@ -1500,6 +1505,7 @@ DEPENDENCIES:
   - firebase_app_check (from `.symlinks/plugins/firebase_app_check/ios`)
   - firebase_auth (from `.symlinks/plugins/firebase_auth/ios`)
   - firebase_core (from `.symlinks/plugins/firebase_core/ios`)
+  - FirebaseAI (~> 11.13.0)
   - Flutter (from `Flutter`)
   - flutter_sound (from `.symlinks/plugins/flutter_sound/ios`)
   - flutter_tts (from `.symlinks/plugins/flutter_tts/ios`)
@@ -1521,6 +1527,7 @@ SPEC REPOS:
     - AppCheckCore
     - BoringSSL-GRPC
     - Firebase
+    - FirebaseAI
     - FirebaseAppCheck
     - FirebaseAppCheckInterop
     - FirebaseAuth
@@ -1596,6 +1603,7 @@ SPEC CHECKSUMS:
   firebase_app_check: 94695458302cf6bb83b197c5b9afc09fd08181dd
   firebase_auth: a9855fe79286576c5225b28aafed65bc374ac19a
   firebase_core: a861be150c0e7c6aecedde077968eb92cbf790b9
+  FirebaseAI: ed2b4f1dafe6433909efadcf79f8eba13ae36e2a
   FirebaseAppCheck: 6097c3bdf50028493a86b28297d0f1f3309c0741
   FirebaseAppCheckInterop: 06fe5a3799278ae4667e6c432edd86b1030fa3df
   FirebaseAuth: 175cb5503dfdb52191b8ff81cdd52c1d9dee9ac9
@@ -1629,6 +1637,6 @@ SPEC CHECKSUMS:
   speech_to_text: 627d3fd2194770b51abb324ba45c2d39398f24a8
   Try: 5ef669ae832617b3cee58cb2c6f99fb767a4ff96
 
-PODFILE CHECKSUM: dd10202568ac84f2395f447e1343b8a70e5179e1
+PODFILE CHECKSUM: d78cee9e25ead928844ce31cad22725c73ed2ec9
 
 COCOAPODS: 1.16.2

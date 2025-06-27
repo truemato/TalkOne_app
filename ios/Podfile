@@ -29,6 +29,9 @@ flutter_ios_podfile_setup
 
 target 'Runner' do
   use_frameworks!
+  
+  # Firebase AI SDK for Vertex AI backend
+  pod 'FirebaseAI', '~> 11.13.0'
 
   flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
   target 'RunnerTests' do

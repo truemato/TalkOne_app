@@ -1,16 +1,27 @@
 import Flutter
 import UIKit
+import FirebaseAI
 
 @main
 @objc class AppDelegate: FlutterAppDelegate {
   private let CHANNEL = "com.talkone.app/ai_filter"
   private var videoFrameProcessor: AgoraVideoFrameProcessor?
+  private var geminiModel: GenerativeModel?
   
   override func application(
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
     GeneratedPluginRegistrant.register(with: self)
+    
+    // Initialize Firebase AI with Vertex AI backend
+    do {
+      let ai = FirebaseAI.firebaseAI(backend: .vertexAI())
+      geminiModel = ai.generativeModel(modelName: "gemini-2.0-flash-lite-001")
+      print("iOS Firebase AI with Vertex AI backend initialized successfully")
+    } catch {
+      print("iOS Firebase AI initialization error: \(error)")
+    }
     
     // Set up AI Filter method channel
     if let controller = window?.rootViewController as? FlutterViewController {

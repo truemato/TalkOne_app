@@ -17,7 +17,7 @@ import '../utils/permission_util.dart';
 /// - 音声合成: VOICEVOX ずんだもん（speaker_id: 3, UUID: 388f246b-8c41-4ac1-8e2d-5d79f3ff56d9）
 /// - 音声認識: STT (speech_to_text) でユーザー音声をリアルタイム認識
 /// - 会話ログ: 全ての会話内容（平文）をFirebase Firestoreに自動保存
-/// - AI: Gemini 2.5 Pro（ニュートラル・性格設定なし）
+/// - AI: Gemini 2.5 Pro（ニュートラル・性格設定なし）または Gemini 2.0 Flash Live
 class ZundamonChatService {
   // ずんだもん固有の設定
   static const String _speakerUuid = '388f246b-8c41-4ac1-8e2d-5d79f3ff56d9';
@@ -41,12 +41,18 @@ class ZundamonChatService {
   Timer? _listeningTimer;
   String _accumulatedSpeech = '';
   int _androidRetryCount = 0; // Android音声認識再試行カウンター
+  bool _useFlashLive = false; // Gemini 2.0 Flash Liveモードフラグ
   
   // コールバック
   Function(String)? onUserSpeech;
   Function(String)? onAIResponse;
   Function(bool)? onListeningStateChanged;
   Function(String)? onError;
+  
+  /// Flash Liveモードを設定
+  void setFlashLiveMode(bool useFlashLive) {
+    _useFlashLive = useFlashLive;
+  }
   
   /// 初期化
   Future<bool> initialize() async {
@@ -102,8 +108,9 @@ class ZundamonChatService {
         }
       }
       
-      // AI初期化
-      _aiModel = FirebaseAI.googleAI().generativeModel(model: Config.model);
+      // AI初期化（Gemini 2.0 Flash Liteのみ使用）
+      // Vertex AI バックエンドを使用してGemini 2.0 Flash Liteを初期化
+      _aiModel = FirebaseAI.vertexAI().generativeModel(model: 'gemini-2.0-flash-lite-001');
       
       // ユーザーのAIメモリを取得
       String userMemory = '';

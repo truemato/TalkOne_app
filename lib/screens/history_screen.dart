@@ -212,26 +212,34 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: _currentThemeColor,
-      appBar: AppBar(
-        title: Text(
-          '通話履歴',
-          style: GoogleFonts.notoSans(
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
+    return GestureDetector(
+      onHorizontalDragEnd: (details) {
+        // 右から左へのスワイプ（負の速度）でホーム画面に戻る
+        if (details.primaryVelocity! < 0) {
+          Navigator.pop(context);
+        }
+      },
+      child: Scaffold(
+        backgroundColor: _currentThemeColor,
+        appBar: AppBar(
+          title: Text(
+            '通話履歴',
+            style: GoogleFonts.notoSans(
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            onPressed: () => Navigator.of(context).pop(),
           ),
         ),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
+        body: Platform.isAndroid 
+            ? SafeArea(child: _buildContent())
+            : _buildContent(),
       ),
-      body: Platform.isAndroid 
-          ? SafeArea(child: _buildContent())
-          : _buildContent(),
     );
   }
 

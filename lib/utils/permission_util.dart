@@ -5,7 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 class PermissionUtil {
   static const _firstLaunchKey = 'is_first_launch_done';
 
-  /// 初回ならカメラ & マイク & 音声認識をリクエストして true を返す。
+  /// 初回ならマイク & 音声認識をリクエストして true を返す。
   /// 2 回目以降は何もしない。
   static Future<bool> handleFirstLaunchPermissions() async {
     final prefs = await SharedPreferences.getInstance();
@@ -17,14 +17,11 @@ class PermissionUtil {
       return true;
     }
 
-    // ★ 必要な権限をまとめてリクエスト
-    print('PermissionUtil: 権限リクエストを開始します');
+    // ★ 必要な権限のみリクエスト（カメラ・Bluetoothは不要）
+    print('PermissionUtil: 権限リクエストを開始します（マイク・音声認識のみ）');
     final statuses = await [
-      Permission.camera,
       Permission.microphone,
       Permission.speech,  // iOS音声認識用
-      Permission.bluetoothConnect, // Android 12+ Bluetooth権限
-      // Permission.notification, // ← 通知も必要なら追加
     ].request();
     
     print('PermissionUtil: 権限リクエスト結果: $statuses');
@@ -40,10 +37,8 @@ class PermissionUtil {
   /// 権限の状態を確認（リクエストはしない）
   static Future<Map<Permission, PermissionStatus>> checkPermissionStatuses() async {
     final Map<Permission, PermissionStatus> statuses = {};
-    statuses[Permission.camera] = await Permission.camera.status;
     statuses[Permission.microphone] = await Permission.microphone.status;
     statuses[Permission.speech] = await Permission.speech.status;
-    statuses[Permission.bluetoothConnect] = await Permission.bluetoothConnect.status;
     return statuses;
   }
   

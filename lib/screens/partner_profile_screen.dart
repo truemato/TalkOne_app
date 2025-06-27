@@ -151,28 +151,31 @@ class _PartnerProfileScreenState extends State<PartnerProfileScreen> {
   }
 
   Widget _buildHeader() {
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Row(
-        children: [
-          IconButton(
-            icon: const Icon(Icons.arrow_back, color: Colors.white),
-            onPressed: () => Navigator.pop(context),
-          ),
-          Expanded(
-            child: Center(
-              child: Text(
-                '相手のプロフィール',
-                style: GoogleFonts.notoSans(
-                  color: Colors.white,
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
+    return SafeArea(
+      bottom: false,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            IconButton(
+              icon: const Icon(Icons.arrow_back, color: Colors.white),
+              onPressed: () => Navigator.pop(context),
+            ),
+            Expanded(
+              child: Center(
+                child: Text(
+                  '相手のプロフィール',
+                  style: GoogleFonts.notoSans(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ),
-          ),
-          const SizedBox(width: 48),
-        ],
+            const SizedBox(width: 48),
+          ],
+        ),
       ),
     );
   }

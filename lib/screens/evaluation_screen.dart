@@ -178,7 +178,18 @@ class _EvaluationScreenState extends State<EvaluationScreen>
           _buildRatingDescription(),
           if (_isSubmitted) ...[
             const SizedBox(height: 30),
-            _buildSendingIndicator(),
+            const CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              '評価を送信中...',
+              style: GoogleFonts.catamaran(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: Colors.white,
+              ),
+            ),
           ],
         ],
       ),

@@ -34,9 +34,9 @@ class _HomeScreenState extends State<HomeScreen>
   int _userRating = 1000;
   String? _currentUserId;
   
-  // PageView用のコントローラーとページ管理
-  late PageController _pageController;
-  int _currentPageIndex = 1; // 中央のホーム画面を初期値
+  // PageView用のコントローラーとページ管理（削除）
+  // late PageController _pageController;
+  // int _currentPageIndex = 1; // 中央のホーム画面を初期値
 
   // 背景アニメーションの状態管理
   int _currentBackgroundIndex = 0;
@@ -84,8 +84,8 @@ class _HomeScreenState extends State<HomeScreen>
     WidgetsBinding.instance.addObserver(this);
     _loadUserRating();
     
-    // PageControllerの初期化
-    _pageController = PageController(initialPage: 1);
+    // PageControllerの初期化（削除）
+    // _pageController = PageController(initialPage: 1);
     
     _waveController = AnimationController(
       duration: const Duration(seconds: 2),
@@ -159,7 +159,7 @@ class _HomeScreenState extends State<HomeScreen>
     _waveController.dispose();
     _bubbleController.dispose();
     _rateController.dispose();
-    _pageController.dispose();
+    // _pageController.dispose(); // PageControllerは削除したためコメントアウト
     super.dispose();
   }
 
@@ -330,7 +330,8 @@ class _HomeScreenState extends State<HomeScreen>
                               icon: SvgPicture.asset('aseets/icons/Settings.svg',
                                   width: 29, height: 29),
                               onPressed: () async {
-                                await Navigator.of(context).push(_createSettingsRoute());
+                                await Navigator.of(context)
+                                    .push(_createSettingsRoute());
                                 // 設定画面から戻った時にテーマを更新
                                 _loadUserRating();
                               },
@@ -431,9 +432,7 @@ class _HomeScreenState extends State<HomeScreen>
           const SizedBox(height: 16),
         ],
         _buildAICallButton(theme),
-        const SizedBox(height: 16),
-        _buildZundamonButton(theme),
-        const SizedBox(height: 16),
+        const SizedBox(height: 24),
         _buildRateCounter(),
       ],
     );
@@ -476,12 +475,21 @@ class _HomeScreenState extends State<HomeScreen>
         ),
         const SizedBox(height: 8),
         Text(
-          'Ver 0.4',
+          'Ver 0.5',
           style: GoogleFonts.notoSans(
             color: const Color(0xFF4E3B7A).withOpacity(0.7),
             fontSize: 16,
             fontWeight: FontWeight.w300,
             letterSpacing: 1,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'AI: Gemini 2.0 Flash Lite',
+          style: GoogleFonts.notoSans(
+            color: const Color(0xFF4E3B7A).withOpacity(0.6),
+            fontSize: 12,
+            fontWeight: FontWeight.w300,
           ),
         ),
       ],
@@ -613,8 +621,8 @@ class _HomeScreenState extends State<HomeScreen>
         const Color(0xFFFFE55C), // ライトゴールド
       ];
       shadowColors = [
-        const Color(0xFFB8860B), // ダークゴールド
-        const Color(0xFF8B7355), // ブロンズ
+        Colors.black.withOpacity(0.8), // 黒い影
+        Colors.black.withOpacity(0.6), // より薄い黒い影
       ];
     } else if (rating >= 3000) {
       // 銀色 (3000以上)
@@ -626,8 +634,8 @@ class _HomeScreenState extends State<HomeScreen>
         const Color(0xFFD3D3D3), // ライトグレー
       ];
       shadowColors = [
-        const Color(0xFF808080), // ダークグレー
-        const Color(0xFF696969), // ディムグレー
+        Colors.black.withOpacity(0.8), // 黒い影
+        Colors.black.withOpacity(0.6), // より薄い黒い影
       ];
     } else if (rating >= 2000) {
       // 銅色 (2000以上)
@@ -639,8 +647,8 @@ class _HomeScreenState extends State<HomeScreen>
         const Color(0xFFD2691E), // チョコレート
       ];
       shadowColors = [
-        const Color(0xFF8B4513), // サドルブラウン
-        const Color(0xFF654321), // ダークブラウン
+        Colors.black.withOpacity(0.8), // 黒い影
+        Colors.black.withOpacity(0.6), // より薄い黒い影
       ];
     } else {
       // 通常 (2000未満)
@@ -728,30 +736,6 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
 
-  Widget _buildZundamonButton(AppThemePalette theme) {
-    return ElevatedButton(
-      onPressed: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => const ZundamonChatScreen(),
-          ),
-        );
-      },
-      style: ElevatedButton.styleFrom(
-        backgroundColor: const Color(0xFF81C784), // ずんだもんカラー（薄緑）
-        shape: const CircleBorder(),
-        padding: const EdgeInsets.all(16),
-        elevation: 4,
-        shadowColor: Colors.black.withOpacity(0.1),
-      ),
-      child: const Icon(
-        Icons.smart_toy,
-        color: Colors.white,
-        size: 28,
-      ),
-    );
-  }
 
 
 

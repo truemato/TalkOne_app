@@ -1,5 +1,6 @@
 // lib/services/agora_call_service.dart
 import 'dart:async';
+import 'dart:io' show Platform;
 import 'package:agora_rtc_engine/agora_rtc_engine.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../config/agora_config.dart';
@@ -215,9 +216,22 @@ class AgoraCallService {
       await _engine!.enableAudio(); // ローカルキャプチャ ON
       await _engine!.setDefaultAudioRouteToSpeakerphone(true); // iOS/Android共通でスピーカー出力
       
-      // iOS用の追加設定
+      // プラットフォーム別の追加設定
       await _engine!.setChannelProfile(ChannelProfileType.channelProfileCommunication);
       await _engine!.setClientRole(role: ClientRoleType.clientRoleBroadcaster);
+      
+      // Android特有の設定
+      if (Platform.isAndroid) {
+        print('Agora: Android追加設定適用中...');
+        // オーディオプロファイルを明示的に設定
+        await _engine!.setAudioProfile(
+          profile: AudioProfileType.audioProfileDefault,
+          scenario: AudioScenarioType.audioScenarioDefault,
+        );
+        // マイクを有効化
+        await _engine!.enableLocalAudio(true);
+        print('Agora: Android追加設定完了');
+      }
       
       // 音声レベル監視を有効化
       await _engine!.enableAudioVolumeIndication(
@@ -358,6 +372,15 @@ class AgoraCallService {
       
       print('Agora: チャンネル参加試行 - Channel: $channelName, UID: $uid, Token: ${agoraToken == null ? "null" : "設定済み"}');
       
+      // Android の場合、参加前に再度音声設定を確認
+      if (Platform.isAndroid) {
+        print('Agora: Android音声設定再確認...');
+        await _engine!.enableAudio();
+        await _engine!.enableLocalAudio(true);
+        await _engine!.muteLocalAudioStream(false);
+        print('Agora: Android音声設定再確認完了');
+      }
+      
       // チャンネルメディアオプションを設定（SDK 6系必須）
       final mediaOptions = ChannelMediaOptions(
         clientRoleType: ClientRoleType.clientRoleBroadcaster, // Broadcasterでないとpublishが無視される
@@ -365,6 +388,7 @@ class AgoraCallService {
         autoSubscribeAudio: true, // 相手の音声を自動受信
         publishCameraTrack: _isVideoEnabled, // カメラ映像を送信（ビデオ有効時のみ）
         autoSubscribeVideo: _isVideoEnabled, // ビデオ自動購読
+        channelProfile: ChannelProfileType.channelProfileCommunication, // 通話プロファイル明示的指定
       );
       
       await _engine!.joinChannel(

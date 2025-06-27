@@ -83,8 +83,8 @@ class _RateCounterState extends State<RateCounter>
         const Color(0xFFFFE55C), // ライトゴールド
       ];
       shadowColors = [
-        const Color(0xFFB8860B), // ダークゴールド
-        const Color(0xFF8B7355), // ブロンズ
+        Colors.black.withOpacity(0.8), // 黒い影
+        Colors.black.withOpacity(0.6), // より薄い黒い影
       ];
     } else if (rating >= 3000) {
       // 銀色 (3000以上)
@@ -96,8 +96,8 @@ class _RateCounterState extends State<RateCounter>
         const Color(0xFFD3D3D3), // ライトグレー
       ];
       shadowColors = [
-        const Color(0xFF808080), // ダークグレー
-        const Color(0xFF696969), // ディムグレー
+        Colors.black.withOpacity(0.8), // 黒い影
+        Colors.black.withOpacity(0.6), // より薄い黒い影
       ];
     } else if (rating >= 2000) {
       // 銅色 (2000以上)
@@ -109,8 +109,8 @@ class _RateCounterState extends State<RateCounter>
         const Color(0xFFD2691E), // チョコレート
       ];
       shadowColors = [
-        const Color(0xFF8B4513), // サドルブラウン
-        const Color(0xFF654321), // ダークブラウン
+        Colors.black.withOpacity(0.8), // 黒い影
+        Colors.black.withOpacity(0.6), // より薄い黒い影
       ];
     } else {
       // 通常 (2000未満)
@@ -164,7 +164,7 @@ class _RateCounterState extends State<RateCounter>
             style: GoogleFonts.notoSans(
               fontSize: fontSize,
               fontWeight: FontWeight.w700,
-              color: const Color(0xFF1E1E1E),
+              color: Colors.white,
             ),
           ),
         ],
