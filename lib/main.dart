@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'firebase_options.dart';
-import 'screens/home_screen.dart';
+import 'screens/page_view_container.dart';
 import 'screens/login_screen.dart';
 import 'screens/permission_denied_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -85,7 +85,7 @@ class AuthWrapper extends StatelessWidget {
         
         // ユーザーがサインイン済みの場合
         if (snapshot.hasData) {
-          return const HomeScreen();
+          return const PageViewContainer();
         }
         
         // ユーザーがサインインしていない場合

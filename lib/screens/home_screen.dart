@@ -15,7 +15,16 @@ import '../utils/permission_util.dart';
 import '../utils/theme_utils.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  final VoidCallback? onNavigateToHistory;
+  final VoidCallback? onNavigateToSettings;
+  final VoidCallback? onNavigateToNotification;
+
+  const HomeScreen({
+    super.key,
+    this.onNavigateToHistory,
+    this.onNavigateToSettings,
+    this.onNavigateToNotification,
+  });
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -131,25 +140,36 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Future<void> _loadUserRating() async {
-    final profile = await _userProfileService.getUserProfile();
-    if (profile != null && mounted) {
-      setState(() {
-        _userRating = profile.rating;
+    try {
+      final profile = await _userProfileService.getUserProfile();
+      if (profile != null && mounted) {
+        setState(() {
+          _userRating = profile.rating;
+          // アイコンパスとテーマインデックスも更新
+          if (profile.iconPath != null) {
+            _selectedIconPath = profile.iconPath;
+          }
+          _selectedThemeIndex = profile.themeIndex;
+        });
+        
+        // アニメーションコントローラーが破棄されていないか確認
+        if (_rateController.isCompleted || _rateController.isAnimating) {
+          _rateController.reset();
+        }
+        
+        // アニメーションを再設定
         _rateAnimation = IntTween(
-          begin: 0,
+          begin: _rateAnimation.value ?? 0,
           end: _userRating,
         ).animate(CurvedAnimation(
           parent: _rateController,
           curve: Curves.easeOut,
         ));
-        // アイコンパスとテーマインデックスも更新
-        if (profile.iconPath != null) {
-          _selectedIconPath = profile.iconPath;
-        }
-        _selectedThemeIndex = profile.themeIndex;
-      });
-      _rateController.reset();
-      _rateController.forward();
+        
+        _rateController.forward();
+      }
+    } catch (e) {
+      print('Error loading user rating: $e');
     }
   }
 
@@ -176,10 +196,14 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // 他の画面から戻ってきた時にレーティングを更新
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadUserRating();
-    });
+    // PageViewで戻ってきた時のみレーティングを更新
+    if (widget.onNavigateToHistory != null || widget.onNavigateToSettings != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _loadUserRating();
+        }
+      });
+    }
   }
 
   // 背景を切り替えるメソッド
@@ -199,24 +223,42 @@ class _HomeScreenState extends State<HomeScreen>
         onHorizontalDragEnd: (details) {
           // 右から左へのスワイプ（負の速度）で設定画面
           if (details.primaryVelocity! < -500) {
-            Navigator.of(context).push(_createSettingsRoute()).then((_) {
-              _loadUserRating(); // 設定画面から戻った時にテーマを更新
-            });
+            if (widget.onNavigateToSettings != null) {
+              widget.onNavigateToSettings!();
+            } else {
+              Navigator.of(context).push(_createSettingsRoute()).then((_) {
+                _loadUserRating(); // 設定画面から戻った時にテーマを更新
+              });
+            }
           }
           // 左から右へのスワイプ（正の速度）で履歴画面
           else if (details.primaryVelocity! > 500) {
-            Navigator.of(context).push(_createHistoryRoute());
+            if (widget.onNavigateToHistory != null) {
+              widget.onNavigateToHistory!();
+            } else {
+              Navigator.of(context).push(_createHistoryRoute());
+            }
           }
         },
         onVerticalDragEnd: (details) {
           // 上から下へのスワイプ（正の速度）で通知画面
           if (details.primaryVelocity! > 500) {
-            Navigator.of(context).push(_createNotificationRoute());
+            if (widget.onNavigateToNotification != null) {
+              widget.onNavigateToNotification!();
+            } else {
+              Navigator.of(context).push(_createNotificationRoute());
+            }
           }
         },
         child: Stack(
           children: [
-            SafeArea(child: Center(child: _buildContent(context, theme))),
+            // メインコンテンツ（SafeAreaの位置を修正）
+            Positioned.fill(
+              child: SafeArea(
+                bottom: false, // 下部はメニューバーがあるのでfalse
+                child: _buildContent(context, theme),
+              ),
+            ),
             // ユーザーID表示（メニューバーの上）
             Positioned(
               left: 0,
@@ -256,7 +298,11 @@ class _HomeScreenState extends State<HomeScreen>
                               icon: SvgPicture.asset('aseets/icons/ber_Icon.svg',
                                   width: 32, height: 32),
                               onPressed: () {
-                                Navigator.of(context).push(_createHistoryRoute());
+                                if (widget.onNavigateToHistory != null) {
+                                  widget.onNavigateToHistory!();
+                                } else {
+                                  Navigator.of(context).push(_createHistoryRoute());
+                                }
                               },
                             ),
                             const SizedBox(width: 64),
@@ -264,8 +310,12 @@ class _HomeScreenState extends State<HomeScreen>
                               icon: SvgPicture.asset('aseets/icons/bell.svg',
                                   width: 36, height: 36),
                               onPressed: () {
-                                Navigator.of(context)
-                                    .push(_createNotificationRoute());
+                                if (widget.onNavigateToNotification != null) {
+                                  widget.onNavigateToNotification!();
+                                } else {
+                                  Navigator.of(context)
+                                      .push(_createNotificationRoute());
+                                }
                               },
                             ),
                             const SizedBox(width: 64),
@@ -273,10 +323,16 @@ class _HomeScreenState extends State<HomeScreen>
                               icon: SvgPicture.asset('aseets/icons/Settings.svg',
                                   width: 29, height: 29),
                               onPressed: () async {
-                                await Navigator.of(context)
-                                    .push(_createSettingsRoute());
-                                // 設定画面から戻った時にテーマを更新
-                                _loadUserRating();
+                                if (widget.onNavigateToSettings != null) {
+                                  widget.onNavigateToSettings!();
+                                  // 設定画面から戻った時にテーマを更新
+                                  _loadUserRating();
+                                } else {
+                                  await Navigator.of(context)
+                                      .push(_createSettingsRoute());
+                                  // 設定画面から戻った時にテーマを更新
+                                  _loadUserRating();
+                                }
                               },
                             ),
                           ],
@@ -313,7 +369,11 @@ class _HomeScreenState extends State<HomeScreen>
                               icon: SvgPicture.asset('aseets/icons/ber_Icon.svg',
                                   width: 32, height: 32),
                               onPressed: () {
-                                Navigator.of(context).push(_createHistoryRoute());
+                                if (widget.onNavigateToHistory != null) {
+                                  widget.onNavigateToHistory!();
+                                } else {
+                                  Navigator.of(context).push(_createHistoryRoute());
+                                }
                               },
                             ),
                             const SizedBox(width: 64),
@@ -321,8 +381,12 @@ class _HomeScreenState extends State<HomeScreen>
                               icon: SvgPicture.asset('aseets/icons/bell.svg',
                                   width: 36, height: 36),
                               onPressed: () {
-                                Navigator.of(context)
-                                    .push(_createNotificationRoute());
+                                if (widget.onNavigateToNotification != null) {
+                                  widget.onNavigateToNotification!();
+                                } else {
+                                  Navigator.of(context)
+                                      .push(_createNotificationRoute());
+                                }
                               },
                             ),
                             const SizedBox(width: 64),
@@ -330,10 +394,16 @@ class _HomeScreenState extends State<HomeScreen>
                               icon: SvgPicture.asset('aseets/icons/Settings.svg',
                                   width: 29, height: 29),
                               onPressed: () async {
-                                await Navigator.of(context)
-                                    .push(_createSettingsRoute());
-                                // 設定画面から戻った時にテーマを更新
-                                _loadUserRating();
+                                if (widget.onNavigateToSettings != null) {
+                                  widget.onNavigateToSettings!();
+                                  // 設定画面から戻った時にテーマを更新
+                                  _loadUserRating();
+                                } else {
+                                  await Navigator.of(context)
+                                      .push(_createSettingsRoute());
+                                  // 設定画面から戻った時にテーマを更新
+                                  _loadUserRating();
+                                }
                               },
                             ),
                           ],
@@ -350,16 +420,21 @@ class _HomeScreenState extends State<HomeScreen>
 
   Widget _buildContent(BuildContext context, AppThemePalette theme) {
     final screenHeight = MediaQuery.of(context).size.height;
-    return Column(
-      children: [
-        const SizedBox(height: 40),
-        _buildTitle(),
-        SizedBox(height: screenHeight * 0.20),
-        Center(
-          child: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              _buildAiIcon(),
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      child: SingleChildScrollView(
+        physics: const NeverScrollableScrollPhysics(),
+        child: Column(
+          children: [
+            const SizedBox(height: 40),
+            _buildTitle(),
+            SizedBox(height: screenHeight * 0.20),
+            Center(
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  _buildAiIcon(),
               // 編集ボタンをAIアイコンの右下に重ねる
               Positioned(
                 right: 0,
@@ -434,7 +509,9 @@ class _HomeScreenState extends State<HomeScreen>
         _buildAICallButton(theme),
         const SizedBox(height: 24),
         _buildRateCounter(),
-      ],
+          ],
+        ),
+      ),
     );
   }
 
@@ -475,7 +552,7 @@ class _HomeScreenState extends State<HomeScreen>
         ),
         const SizedBox(height: 8),
         Text(
-          'Ver 0.5',
+          'Ver 0.6',
           style: GoogleFonts.notoSans(
             color: const Color(0xFF4E3B7A).withOpacity(0.7),
             fontSize: 16,

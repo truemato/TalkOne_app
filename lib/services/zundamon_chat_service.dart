@@ -112,16 +112,24 @@ class ZundamonChatService {
       // Vertex AI バックエンドを使用してGemini 2.0 Flash Liteを初期化
       _aiModel = FirebaseAI.vertexAI().generativeModel(model: 'gemini-2.0-flash-lite-001');
       
-      // ユーザーのAIメモリを取得
+      // ユーザープロフィールとAIメモリを取得
       String userMemory = '';
+      String userName = '';
+      String userGender = '';
+      String userBirthday = '';
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
         final profile = await _userProfileService.getUserProfile();
-        userMemory = profile?.aiMemory ?? '';
-        print('ユーザーAIメモリ取得: "$userMemory"');
+        if (profile != null) {
+          userMemory = profile.aiMemory ?? '';
+          userName = profile.nickname ?? '';
+          userGender = profile.gender ?? '';
+          userBirthday = profile.birthday ?? '';
+          print('ユーザープロフィール取得: 名前="$userName", 性別="$userGender", 誕生日="$userBirthday", AIメモリ="$userMemory"');
+        }
       }
       
-      // ずんだもんの性格設定とユーザーメモリを組み合わせ
+      // ずんだもんの性格設定とユーザープロフィールを組み合わせ
       final systemPrompt = '''
 ボクは「ずんだもん」なのだ！東北の妖精で、10歳くらいなのだ〜。
 明るく元気いっぱいで、みんなを応援するのが大好きなのだ！
@@ -144,22 +152,45 @@ class ZundamonChatService {
 4. 争いは苦手で、みんな仲良くが大切なのだ
 5. わからないことは素直に「わからないのだ〜」と言うのだ
 
+${userName.isNotEmpty ? '''
+【話している相手の情報】
+- 名前: $userName
+${userGender.isNotEmpty ? '- 性別: $userGender' : ''}
+${userBirthday.isNotEmpty ? '- 誕生日: $userBirthday' : ''}
+
+初めての会話では「初めまして、${userName}さんなのだ！」のように挨拶するのだ。
+会話中では「${userName}さん」と呼んで親しみやすく話すのだ！
+''' : ''}
+
 ${userMemory.isNotEmpty ? '''
-【この人について覚えておくこと】
+【${userName.isNotEmpty ? userName + 'さん' : 'この人'}について特に重要なこと（AIに伝えたいこと）】
 $userMemory
 
-この情報を参考にして、より個人的で親しみやすい会話をするのだ！
+この情報は特に重要なのだ！会話のネタにしたり、この内容に関連する質問をしたり、この人の興味に合わせて話題を提供するのだ！
 ''' : ''}
 
 【例】
 相手「疲れたな...」
-ボク「大丈夫なのだ！ボクが元気パワーを送るのだ〜！休憩も大事なのだ♪」
+ボク「大丈夫なのだ${userName.isNotEmpty ? userName + 'さん' : ''}！ボクが元気パワーを送るのだ〜！休憩も大事なのだ♪」
 ''';
+      
+      // 初期メッセージを個人的なものに変更
+      String initialMessage = 'ボク、ずんだもんなのだ！今日も元気いっぱいなのだ〜！';
+      if (userName.isNotEmpty) {
+        initialMessage = '初めまして、${userName}さんなのだ！ボク、ずんだもんなのだ〜！';
+        if (userMemory.isNotEmpty) {
+          initialMessage += '${userName}さんのこと、いろいろ聞かせてほしいのだ！';
+        } else {
+          initialMessage += '今日は何か話したいことあるのだ？';
+        }
+      } else {
+        initialMessage += '何か話したいことあるのだ？';
+      }
       
       _chatSession = _aiModel.startChat(
         history: [
           Content.text(systemPrompt),
-          Content.model([TextPart('ボク、ずんだもんなのだ！今日も元気いっぱいなのだ〜！何か話したいことあるのだ？')]),
+          Content.model([TextPart(initialMessage)]),
         ],
         generationConfig: GenerationConfig(
           temperature: 0.8, // 元気な性格のため少し高めに
@@ -192,9 +223,8 @@ $userMemory
       if (Platform.isIOS) {
         print('iOSずんだもん初期化完了');
         Future.delayed(const Duration(milliseconds: 500), () async {
-          const welcomeMessage = 'ボク、ずんだもんなのだ！今日も元気いっぱいなのだ〜！何か話したいことあるのだ？';
-          onAIResponse?.call(welcomeMessage);
-          await _speakWithVoicevox(welcomeMessage);
+          onAIResponse?.call(initialMessage);
+          await _speakWithVoicevox(initialMessage);
         });
       } else if (Platform.isAndroid) {
         print('Androidずんだもん初期化完了');

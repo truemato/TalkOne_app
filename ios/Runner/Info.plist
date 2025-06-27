@@ -40,6 +40,8 @@
 	<string>TalkOneで音声通話をするために、マイクへのアクセスが必要です。</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>TalkOneであなたの音声をテキストに変換するために、音声認識機能が使用されます。</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>TalkOneは通話品質を向上させるため、同じネットワーク内での最適な接続経路を探します。</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UIBackgroundModes</key>
@@ -64,6 +66,15 @@
 		<string>UIInterfaceOrientationPortraitUpsideDown</string>
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.198779252752-a7or4kbjhq2ditrccjku0h3dei26j9rr</string>
+			</array>
+		</dict>
 	</array>
 </dict>
 </plist>

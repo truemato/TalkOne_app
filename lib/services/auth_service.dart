@@ -1,6 +1,8 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:io' show Platform;
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -82,6 +84,65 @@ class AuthService {
     }
   }
 
+  // Apple IDでサインイン
+  Future<UserCredential?> signInWithApple() async {
+    try {
+      print('=== Apple Sign In Debug Start ===');
+      print('Apple Sign In開始');
+      
+      // Apple認証が利用可能かチェック
+      if (!Platform.isIOS) {
+        print('❌ Apple Sign InはiOSでのみ利用可能です');
+        return null;
+      }
+      
+      final isAvailable = await SignInWithApple.isAvailable();
+      if (!isAvailable) {
+        print('❌ Apple Sign Inが利用できません');
+        return null;
+      }
+      
+      // Apple認証フローを開始
+      print('Apple認証フロー開始...');
+      final appleCredential = await SignInWithApple.getAppleIDCredential(
+        scopes: [
+          AppleIDAuthorizationScopes.email,
+          AppleIDAuthorizationScopes.fullName,
+        ],
+      );
+      
+      print('✅ Apple認証成功: ${appleCredential.email ?? 'メールアドレス未取得'}');
+      print('ユーザーID: ${appleCredential.userIdentifier}');
+      print('表示名: ${appleCredential.givenName} ${appleCredential.familyName}');
+      
+      // Firebase認証用のクレデンシャルを作成
+      final oauthCredential = OAuthProvider("apple.com").credential(
+        idToken: appleCredential.identityToken,
+        accessToken: appleCredential.authorizationCode,
+      );
+      
+      // Firebaseにサインイン
+      final UserCredential userCredential = await _auth.signInWithCredential(oauthCredential);
+      
+      // 既存プロフィールの確認（上書きを絶対に防ぐ）
+      await _ensureUserProfileExists(userCredential.user!);
+      
+      print('✅ Firebase認証成功: ${userCredential.user?.uid}');
+      print('=== Apple Sign In Debug End ===');
+      return userCredential;
+    } catch (e) {
+      print('❌ Apple Sign Inエラー: $e');
+      print('エラータイプ: ${e.runtimeType}');
+      if (e.toString().contains('SignInWithAppleAuthorizationError')) {
+        print('👤 AUTHORIZATION_ERROR: ユーザーがサインインをキャンセルしました');
+      } else if (e.toString().contains('NotSupported')) {
+        print('⚠️ NOT_SUPPORTED: Apple Sign Inがサポートされていません');
+      }
+      print('=== Apple Sign In Debug End ===');
+      return null;
+    }
+  }
+
   // 匿名認証でサインイン
   Future<UserCredential?> signInAnonymously() async {
     try {
@@ -147,8 +208,12 @@ class AuthService {
   // サインアウト
   Future<void> signOut() async {
     try {
+      // Googleサインアウト
       await _googleSignIn.signOut();
+      
+      // Firebaseサインアウト
       await _auth.signOut();
+      
       print('サインアウト成功');
     } catch (e) {
       print('サインアウトエラー: $e');
@@ -214,4 +279,8 @@ class AuthService {
 
   // Googleアカウントでサインイン済みかどうかを確認
   bool get isGoogleSignedIn => currentUser != null && !currentUser!.isAnonymous && currentUser!.email != null;
+  
+  // Apple IDでサインイン済みかどうかを確認
+  bool get isAppleSignedIn => currentUser != null && !currentUser!.isAnonymous && 
+      currentUser!.providerData.any((provider) => provider.providerId == 'apple.com');
 }

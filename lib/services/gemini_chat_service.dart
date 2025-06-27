@@ -96,16 +96,24 @@ class GeminiChatService {
       // AI初期化
       _aiModel = FirebaseAI.googleAI().generativeModel(model: Config.model);
       
-      // ユーザーのAIメモリを取得
+      // ユーザープロフィールとAIメモリを取得
       String userMemory = '';
+      String userName = '';
+      String userGender = '';
+      String userBirthday = '';
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
         final profile = await _userProfileService.getUserProfile();
-        userMemory = profile?.aiMemory ?? '';
-        print('ユーザーAIメモリ取得: "$userMemory"');
+        if (profile != null) {
+          userMemory = profile.aiMemory ?? '';
+          userName = profile.nickname ?? '';
+          userGender = profile.gender ?? '';
+          userBirthday = profile.birthday ?? '';
+          print('ユーザープロフィール取得: 名前="$userName", 性別="$userGender", 誕生日="$userBirthday", AIメモリ="$userMemory"');
+        }
       }
       
-      // Gemini 2.5 Flashの性格設定とユーザーメモリを組み合わせ
+      // Gemini 2.5 Flashの性格設定とユーザープロフィールを組み合わせ
       final systemPrompt = '''
 私はGemini 2.5 Flashです。親しみやすく、知的でありながら温かみのあるアシスタントとして会話します。
 
@@ -122,22 +130,43 @@ class GeminiChatService {
 4. わからないことは正直に「わかりません」と答えます
 5. 常に相手の役に立とうとする姿勢を示します
 
+${userName.isNotEmpty ? '''
+【会話している相手の情報】
+- お名前: $userName
+${userGender.isNotEmpty ? '- 性別: $userGender' : ''}
+${userBirthday.isNotEmpty ? '- 誕生日: $userBirthday' : ''}
+
+初めての会話では「初めまして、${userName}さん」のようにお名前で挨拶してください。
+会話中では「${userName}さん」とお呼びして、親しみやすく話しかけてください。
+''' : ''}
+
 ${userMemory.isNotEmpty ? '''
-【この人について覚えておくこと】
+【${userName.isNotEmpty ? userName + 'さん' : 'この方'}について特に重要なこと（AIに伝えたいこと）】
 $userMemory
 
-この情報を活用して、より個人的で意味のある会話をしてください。
+この情報は非常に重要です。会話の中でこの内容を話題にしたり、この方の興味や関心に合わせて適切な質問やアドバイスを提供してください。
 ''' : ''}
 
 【例】
 相手「最近疲れて...」
-私「お疲れさまです。何か大変なことがあったのでしょうか？話してくださったら、少しでもお役に立てるかもしれません。」
+私「お疲れさまです${userName.isNotEmpty ? '、' + userName + 'さん' : ''}。何か大変なことがあったのでしょうか？話してくださったら、少しでもお役に立てるかもしれません。」
 ''';
+      
+      // 初期メッセージを個人的なものに変更
+      String initialMessage = 'こんにちは！今日はどんなことをお話ししましょうか？';
+      if (userName.isNotEmpty) {
+        initialMessage = '初めまして、${userName}さん！私はGemini 2.5 Flashです。';
+        if (userMemory.isNotEmpty) {
+          initialMessage += '${userName}さんのこと、ぜひお聞かせください。';
+        } else {
+          initialMessage += '今日はどんなことをお話ししましょうか？';
+        }
+      }
       
       _chatSession = _aiModel.startChat(
         history: [
           Content.text(systemPrompt),
-          Content.model([TextPart('こんにちは！今日はどんなことをお話ししましょうか？')]),
+          Content.model([TextPart(initialMessage)]),
         ],
         generationConfig: GenerationConfig(
           temperature: 0.7,
@@ -167,9 +196,8 @@ $userMemory
       if (Platform.isIOS) {
         print('iOS Gemini初期化完了');
         Future.delayed(const Duration(milliseconds: 500), () async {
-          const welcomeMessage = 'こんにちは！今日はどんなことをお話ししましょうか？';
-          onAIResponse?.call(welcomeMessage);
-          await _speakWithTts(welcomeMessage);
+          onAIResponse?.call(initialMessage);
+          await _speakWithTts(initialMessage);
         });
       } else if (Platform.isAndroid) {
         print('Android Gemini初期化完了');
