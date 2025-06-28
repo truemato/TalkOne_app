@@ -1,5 +1,0 @@
-# Test Dockerfile to see VOICEVOX Engine startup
-FROM voicevox/voicevox_engine:cpu-latest
-
-# Test startup with debug output
-CMD ["sh", "-c", "echo 'Starting VOICEVOX Engine...' && echo 'PORT is: ${PORT}' && python run.py --host 0.0.0.0 --port ${PORT:-50021} --allow_origin '*' --preset_file_path /opt/voicevox_engine/presets.yaml || echo 'VOICEVOX failed to start'"]

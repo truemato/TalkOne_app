@@ -1,6 +1,0 @@
-Flask==3.0.0
-Flask-CORS==4.0.0
-gunicorn==21.2.0
-firebase-admin==6.4.0
-agora-token-builder==1.0.0
-google-cloud-firestore==2.14.0

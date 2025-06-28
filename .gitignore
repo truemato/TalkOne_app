@@ -45,6 +45,9 @@ app.*.map.json
 /android/app/release
 # ===== プライベート情報・機密ファイル =====
 
+# プロジェクト内部ドキュメント
+CLAUDE.md
+
 # Firebase設定ファイル（API キー、プロジェクトID等含む）
 /lib/firebase_options.dart
 android/app/google-services.json
