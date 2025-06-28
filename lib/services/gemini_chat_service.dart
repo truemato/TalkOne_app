@@ -93,8 +93,16 @@ class GeminiChatService {
         }
       }
       
-      // AI初期化
-      _aiModel = FirebaseAI.googleAI().generativeModel(model: Config.model);
+      // AI初期化（Vertex AIバックエンドを使用）
+      print('Gemini AI初期化開始: ${Config.model}');
+      try {
+        _aiModel = FirebaseAI.vertexAI().generativeModel(model: Config.model);
+        print('✅ Gemini AI初期化完了');
+      } catch (e) {
+        print('❌ Vertex AI初期化失敗、Google AIにフォールバック: $e');
+        _aiModel = FirebaseAI.googleAI().generativeModel(model: 'gemini-1.5-pro');
+        print('✅ Google AI（Gemini 1.5 Pro）初期化完了');
+      }
       
       // ユーザープロフィールとAIメモリを取得
       String userMemory = '';
@@ -108,7 +116,7 @@ class GeminiChatService {
           userMemory = profile.aiMemory ?? '';
           userName = profile.nickname ?? '';
           userGender = profile.gender ?? '';
-          userBirthday = profile.birthday ?? '';
+          userBirthday = profile.birthday?.toString() ?? '';
           print('ユーザープロフィール取得: 名前="$userName", 性別="$userGender", 誕生日="$userBirthday", AIメモリ="$userMemory"');
         }
       }
@@ -163,18 +171,25 @@ $userMemory
         }
       }
       
-      _chatSession = _aiModel.startChat(
-        history: [
-          Content.text(systemPrompt),
-          Content.model([TextPart(initialMessage)]),
-        ],
-        generationConfig: GenerationConfig(
-          temperature: 0.7,
-          maxOutputTokens: 80, // 100文字制限のため80トークンに制限
-          topP: 0.95,
-          topK: 40,
-        ),
-      );
+      print('ChatSession初期化開始');
+      try {
+        _chatSession = _aiModel.startChat(
+          history: [
+            Content.text(systemPrompt),
+            Content.model([TextPart(initialMessage)]),
+          ],
+          generationConfig: GenerationConfig(
+            temperature: 0.7,
+            maxOutputTokens: 80, // 100文字制限のため80トークンに制限
+            topP: 0.95,
+            topK: 40,
+          ),
+        );
+        print('✅ ChatSession初期化完了');
+      } catch (e) {
+        print('❌ ChatSession初期化エラー: $e');
+        rethrow;
+      }
       
       // 会話セッション開始
       if (user != null) {
@@ -425,38 +440,47 @@ $userMemory
       }
       
       // AI応答生成
+      print('Gemini APIにリクエスト送信: "$userText"');
       final response = await _chatSession.sendMessage(Content.text(userText));
       var aiText = response.text ?? '';
+      print('Gemini APIからの応答: "$aiText"');
+      
+      if (aiText.isEmpty) {
+        print('❌ Gemini応答が空です');
+        aiText = 'すみません、応答を生成できませんでした。もう一度お試しください。';
+      }
       
       // 100文字制限の適用（Gemini用）
       if (aiText.length > 100) {
+        print('文字制限適用前: ${aiText.length}文字');
         aiText = aiText.substring(0, 100);
         // 最後の文が途切れている場合は、前の文で終了する
         final lastSentence = aiText.lastIndexOf('。');
         if (lastSentence > 40) { // 最低40文字は確保
           aiText = aiText.substring(0, lastSentence + 1);
         }
+        print('文字制限適用後: ${aiText.length}文字 - "$aiText"');
       }
       
-      if (aiText.isNotEmpty) {
-        onAIResponse?.call(aiText);
-        
-        // AI応答もログ保存
-        if (_sessionId != null) {
-          await _conversationService.saveVoiceMessage(
-            sessionId: _sessionId!,
-            speakerId: 'gemini_ai',
-            transcribedText: aiText,
-            confidence: 1.0,
-            timestamp: DateTime.now(),
-            metadata: {'isAI': true},
-          );
-        }
-        
-        // 音声合成
-        await _speakWithTts(aiText);
+      print('最終AI応答: "$aiText"');
+      onAIResponse?.call(aiText);
+      
+      // AI応答もログ保存
+      if (_sessionId != null) {
+        await _conversationService.saveVoiceMessage(
+          sessionId: _sessionId!,
+          speakerId: 'gemini_ai',
+          transcribedText: aiText,
+          confidence: 1.0,
+          timestamp: DateTime.now(),
+          metadata: {'isAI': true},
+        );
       }
+      
+      // 音声合成
+      await _speakWithTts(aiText);
     } catch (e) {
+      print('❌ Gemini AI応答エラー: $e');
       onError?.call('AI応答エラー: $e');
       // フォールバック
       await _speakWithTts('申し訳ありません、応答に問題が発生しました。');

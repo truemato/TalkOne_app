@@ -4,7 +4,6 @@ import 'dart:async';
 import 'dart:io' show Platform;
 import 'package:firebase_ai/firebase_ai.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_tts/flutter_tts.dart';
@@ -28,8 +27,7 @@ class _ZundamonChatScreenState extends State<ZundamonChatScreen>
   late Animation<double> _listeningAnimation;
   
   // Gemini AI関連
-  late GenerativeModel _aiModel;  // 2.5 Flash (テキスト生成)
-  late GenerativeModel _liveModel; // 2.0 Flash Live (音声合成)
+  late GenerativeModel _aiModel;  // Gemini 1.5 Pro (テキスト生成)
   late ChatSession _chatSession;
   bool _isInitialized = false;
   bool _isProcessing = false;
@@ -221,26 +219,34 @@ $userMemory
 AI「お疲れ様です！少し休憩して、好きなことでもして気分転換してみてはいかがですか？」
 ''';
 
-      // Gemini 2.5 Flash モデル初期化（テキスト生成用）
-      _aiModel = FirebaseAI.vertexAI().generativeModel(
-        model: 'gemini-2.5-flash-002',
-        systemInstruction: Content.text(systemPrompt),
-        generationConfig: GenerationConfig(
-          temperature: 0.8,
-          maxOutputTokens: 50, // 80文字制限のため
-          topP: 0.9,
-          topK: 40,
-        ),
-      );
+      // Gemini 1.5 Pro モデル初期化（安定したテキスト生成用）
+      try {
+        _aiModel = FirebaseAI.vertexAI().generativeModel(
+          model: 'gemini-1.5-pro',
+          systemInstruction: Content.text(systemPrompt),
+          generationConfig: GenerationConfig(
+            temperature: 0.8,
+            maxOutputTokens: 50, // 80文字制限のため
+            topP: 0.9,
+            topK: 40,
+          ),
+        );
+        print('✅ Vertex AI Gemini 1.5 Pro モデル初期化成功');
+      } catch (e) {
+        print('❌ Vertex AI初期化失敗、Google AIにフォールバック: $e');
+        _aiModel = FirebaseAI.googleAI().generativeModel(
+          model: 'gemini-1.5-pro',
+          systemInstruction: Content.text(systemPrompt),
+          generationConfig: GenerationConfig(
+            temperature: 0.8,
+            maxOutputTokens: 50,
+            topP: 0.9,
+            topK: 40,
+          ),
+        );
+      }
       
-      // Gemini 2.0 Flash Live モデル初期化（音声合成用）
-      _liveModel = FirebaseAI.vertexAI().generativeModel(
-        model: 'gemini-2.0-flash-live-001',
-        generationConfig: GenerationConfig(
-          temperature: 0.7,
-          maxOutputTokens: 100,
-        ),
-      );
+      // 音声合成は単純にFlutter TTSを使用
       
       _chatSession = _aiModel.startChat();
       
@@ -401,17 +407,38 @@ AI「お疲れ様です！少し休憩して、好きなことでもして気分
         );
       }
       
-      // AI応答生成
+      // AI応答生成（デバッグログ強化）
+      print('🔄 Gemini AI にメッセージ送信中: "$userText"');
       final response = await _chatSession.sendMessage(Content.text(userText));
       var aiText = response.text ?? '';
+      print('📥 Gemini生レスポンス: $response');
+      print('📝 Gemini応答テキスト: "$aiText" (${aiText.length}文字)');
+      
+      if (aiText.isEmpty) {
+        print('❌ Gemini応答が空です！response.text = ${response.text}');
+        // より詳細なレスポンス情報をログ出力
+        try {
+          print('📊 Response詳細: candidates=${response.candidates?.length ?? 0}');
+          if (response.candidates?.isNotEmpty == true) {
+            final candidate = response.candidates!.first;
+            print('📊 Candidate content: ${candidate.content}');
+            print('📊 Candidate finishReason: ${candidate.finishReason}');
+          }
+        } catch (e) {
+          print('🔍 Response詳細取得エラー: $e');
+        }
+        aiText = 'すみません、応答を生成できませんでした。もう一度お話しかけてください。';
+      }
       
       // 80文字制限の適用
       if (aiText.length > 80) {
+        print('文字制限適用: ${aiText.length}文字 → 80文字以内');
         aiText = aiText.substring(0, 80);
         final lastSentence = aiText.lastIndexOf('。');
         if (lastSentence > 30) {
           aiText = aiText.substring(0, lastSentence + 1);
         }
+        print('制限後: "$aiText"');
       }
       
       if (aiText.isNotEmpty && !_chatEnded) {
@@ -456,23 +483,10 @@ AI「お疲れ様です！少し休憩して、好きなことでもして気分
 
   Future<void> _speakWithGeminiLive(String text) async {
     try {
-      print('Gemini 2.0 Flash Live音声合成開始: $text');
+      print('🔊 音声合成開始: $text');
       
-      // Gemini 2.0 Flash Liveに音声合成を指示
-      final audioPrompt = 'Generate natural Japanese speech with friendly, energetic tone: $text';
-      
-      final response = await _liveModel.generateContent([
-        Content.text(audioPrompt)
-      ]);
-      
-      // 現在のSDKでは音声データの直接取得が制限されているため
-      // デフォルトのflutter_ttsを使用してテキストを音声に変換
-      if (response.text != null && response.text!.isNotEmpty) {
-        await _playTextWithTTS(text);
-      } else {
-        // fallbackとしてVoiceVoxを使用
-        await _speakWithVoicevoxFallback(text);
-      }
+      // 直接Flutter TTSを使用（Gemini Liveは複雑すぎるため削除）
+      await _playTextWithTTS(text);
       
       // 音声認識再開
       if (_isInitialized && !_isListening && !_chatEnded) {
@@ -481,7 +495,7 @@ AI「お疲れ様です！少し休憩して、好きなことでもして気分
         await _startListening();
       }
     } catch (e) {
-      print('Gemini Live音声合成エラー: $e');
+      print('🔊 音声合成エラー: $e');
       // エラー時はVoiceVoxにフォールバック
       await _speakWithVoicevoxFallback(text);
     }

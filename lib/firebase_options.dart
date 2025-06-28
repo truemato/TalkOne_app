@@ -65,7 +65,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '198779252752',
     projectId: 'myproject-c8034',
     storageBucket: 'myproject-c8034.firebasestorage.app',
-    iosBundleId: 'com.example.flutterTemp',
+    iosBundleId: 'com.truemato.TalkOne',
   );
 
   static const FirebaseOptions macos = FirebaseOptions(
@@ -74,7 +74,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '198779252752',
     projectId: 'myproject-c8034',
     storageBucket: 'myproject-c8034.firebasestorage.app',
-    iosBundleId: 'com.example.flutterTemp',
+    iosBundleId: 'com.truemato.TalkOne',
   );
 
   static const FirebaseOptions windows = FirebaseOptions(
