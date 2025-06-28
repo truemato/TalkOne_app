@@ -46,6 +46,13 @@ post_install do |installer|
       config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
       config.build_settings['ENABLE_BITCODE'] = 'NO'
       
+      # Agora SDKのdSYM生成を無効化してApp Store Connect問題を回避
+      if target.name.start_with?('Agora') || target.name == 'aosl' || target.name.start_with?('video_')
+        config.build_settings['DEBUG_INFORMATION_FORMAT'] = 'dwarf'
+        config.build_settings['DWARF_DSYM_FOLDER_PATH'] = ''
+        config.build_settings['DWARF_DSYM_FILE_NAME'] = ''
+      end
+      
       # Preprocessor definitions for permission_handler
       config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] ||= [
         '$(inherited)',
