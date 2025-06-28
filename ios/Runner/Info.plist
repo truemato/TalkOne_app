@@ -36,6 +36,8 @@
 		<string>_dartobservatory._tcp</string>
 		<string>_flutter._tcp</string>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>TalkOneでビデオ通話をするために、カメラへのアクセスが必要です。</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>TalkOneで音声通話をするために、マイクへのアクセスが必要です。</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
@@ -48,7 +50,6 @@
 	<array>
 		<string>audio</string>
 		<string>voip</string>
-		<string>push-to-talk</string>
 	</array>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
