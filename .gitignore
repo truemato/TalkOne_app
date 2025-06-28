@@ -49,9 +49,15 @@ app.*.map.json
 CLAUDE.md
 
 # Firebase設定ファイル（API キー、プロジェクトID等含む）
+lib/firebase_options.dart
 /lib/firebase_options.dart
+**/firebase_options.dart
 android/app/google-services.json
+/android/app/google-services.json
+**/google-services.json
 ios/Runner/GoogleService-Info.plist
+/ios/Runner/GoogleService-Info.plist
+**/GoogleService-Info.plist
 
 # 環境変数・設定ファイル
 .env
